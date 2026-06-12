@@ -1,0 +1,8 @@
+node_modules/
+dist/
+coverage/
+.flutter-intel/
+*.log
+.DS_Store
+.claude
+
