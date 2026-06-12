@@ -70,11 +70,20 @@ exports[`extractSymbols > matches snapshot: app_router.dart 1`] = `
         "col": 8,
         "line": 23,
       },
+      "parameters": [
+        {
+          "name": "location",
+          "named": false,
+          "required": true,
+          "type": "String",
+        },
+      ],
       "qualifiedName": "describeLocation",
       "range": {
         "endLine": 26,
         "startLine": 23,
       },
+      "returnType": "String",
     },
   ],
 }
@@ -107,6 +116,7 @@ exports[`extractSymbols > matches snapshot: broken.dart 1`] = `
             "endLine": 2,
             "startLine": 2,
           },
+          "returnType": "void",
         },
       ],
       "file": "fixtures/basic/broken.dart",
@@ -145,6 +155,7 @@ exports[`extractSymbols > matches snapshot: broken.dart 1`] = `
             "endLine": 7,
             "startLine": 7,
           },
+          "returnType": "int",
         },
       ],
       "file": "fixtures/basic/broken.dart",
@@ -183,6 +194,7 @@ exports[`extractSymbols > matches snapshot: broken.dart 1`] = `
             "endLine": 11,
             "startLine": 11,
           },
+          "returnType": "int",
         },
       ],
       "file": "fixtures/basic/broken.dart",
@@ -204,6 +216,535 @@ exports[`extractSymbols > matches snapshot: broken.dart 1`] = `
 }
 `;
 
+exports[`extractSymbols > matches snapshot: declaration_detail.dart 1`] = `
+{
+  "parseErrors": [],
+  "symbols": [
+    {
+      "annotations": [
+        {
+          "name": "immutable",
+        },
+        {
+          "args": "name: 'DetailRoute'",
+          "name": "RoutePage",
+        },
+      ],
+      "children": [
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/declaration_detail.dart",
+          "id": "fixtures/basic/declaration_detail.dart#DetailBloc.maxRetries",
+          "kind": "field",
+          "modifiers": [
+            "static",
+            "const",
+          ],
+          "name": "maxRetries",
+          "nameRange": {
+            "col": 20,
+            "line": 9,
+          },
+          "parentId": "fixtures/basic/declaration_detail.dart#DetailBloc",
+          "qualifiedName": "DetailBloc.maxRetries",
+          "range": {
+            "endLine": 9,
+            "startLine": 9,
+          },
+          "returnType": "int",
+        },
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/declaration_detail.dart",
+          "id": "fixtures/basic/declaration_detail.dart#DetailBloc._label",
+          "kind": "field",
+          "modifiers": [
+            "late",
+            "final",
+          ],
+          "name": "_label",
+          "nameRange": {
+            "col": 22,
+            "line": 10,
+          },
+          "parentId": "fixtures/basic/declaration_detail.dart#DetailBloc",
+          "qualifiedName": "DetailBloc._label",
+          "range": {
+            "endLine": 10,
+            "startLine": 10,
+          },
+          "returnType": "String?",
+        },
+        {
+          "annotations": [],
+          "children": [],
+          "doc": "Creates the bloc.",
+          "file": "fixtures/basic/declaration_detail.dart",
+          "id": "fixtures/basic/declaration_detail.dart#DetailBloc.DetailBloc",
+          "kind": "constructor",
+          "modifiers": [
+            "const",
+          ],
+          "name": "DetailBloc",
+          "nameRange": {
+            "col": 9,
+            "line": 13,
+          },
+          "parameters": [
+            {
+              "name": "_label",
+              "named": false,
+              "required": true,
+            },
+            {
+              "name": "repo",
+              "named": true,
+              "required": true,
+              "type": "Repo",
+            },
+            {
+              "name": "retries",
+              "named": true,
+              "required": false,
+              "type": "int",
+            },
+          ],
+          "parentId": "fixtures/basic/declaration_detail.dart#DetailBloc",
+          "qualifiedName": "DetailBloc.DetailBloc",
+          "range": {
+            "endLine": 13,
+            "startLine": 13,
+          },
+        },
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/declaration_detail.dart",
+          "id": "fixtures/basic/declaration_detail.dart#DetailBloc.standard",
+          "kind": "constructor",
+          "modifiers": [
+            "factory",
+          ],
+          "name": "standard",
+          "nameRange": {
+            "col": 22,
+            "line": 15,
+          },
+          "parentId": "fixtures/basic/declaration_detail.dart#DetailBloc",
+          "qualifiedName": "DetailBloc.standard",
+          "range": {
+            "endLine": 15,
+            "startLine": 15,
+          },
+        },
+        {
+          "annotations": [
+            {
+              "name": "override",
+            },
+          ],
+          "children": [],
+          "file": "fixtures/basic/declaration_detail.dart",
+          "id": "fixtures/basic/declaration_detail.dart#DetailBloc.load",
+          "kind": "method",
+          "modifiers": [
+            "async",
+          ],
+          "name": "load",
+          "nameRange": {
+            "col": 16,
+            "line": 18,
+          },
+          "parameters": [
+            {
+              "name": "id",
+              "named": false,
+              "required": true,
+              "type": "String",
+            },
+            {
+              "name": "depth",
+              "named": false,
+              "required": false,
+              "type": "int",
+            },
+          ],
+          "parentId": "fixtures/basic/declaration_detail.dart#DetailBloc",
+          "qualifiedName": "DetailBloc.load",
+          "range": {
+            "endLine": 18,
+            "startLine": 18,
+          },
+          "returnType": "Future<void>",
+        },
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/declaration_detail.dart",
+          "id": "fixtures/basic/declaration_detail.dart#DetailBloc.format",
+          "kind": "method",
+          "modifiers": [
+            "static",
+          ],
+          "name": "format",
+          "nameRange": {
+            "col": 17,
+            "line": 20,
+          },
+          "parameters": [
+            {
+              "name": "value",
+              "named": false,
+              "required": true,
+              "type": "num",
+            },
+          ],
+          "parentId": "fixtures/basic/declaration_detail.dart#DetailBloc",
+          "qualifiedName": "DetailBloc.format",
+          "range": {
+            "endLine": 20,
+            "startLine": 20,
+          },
+          "returnType": "String",
+        },
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/declaration_detail.dart",
+          "id": "fixtures/basic/declaration_detail.dart#DetailBloc.title",
+          "kind": "getter",
+          "modifiers": [],
+          "name": "title",
+          "nameRange": {
+            "col": 14,
+            "line": 22,
+          },
+          "parentId": "fixtures/basic/declaration_detail.dart#DetailBloc",
+          "qualifiedName": "DetailBloc.title",
+          "range": {
+            "endLine": 22,
+            "startLine": 22,
+          },
+          "returnType": "String",
+        },
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/declaration_detail.dart",
+          "id": "fixtures/basic/declaration_detail.dart#DetailBloc.title=",
+          "kind": "setter",
+          "modifiers": [],
+          "name": "title=",
+          "nameRange": {
+            "col": 7,
+            "line": 23,
+          },
+          "parameters": [
+            {
+              "name": "v",
+              "named": false,
+              "required": true,
+              "type": "String",
+            },
+          ],
+          "parentId": "fixtures/basic/declaration_detail.dart#DetailBloc",
+          "qualifiedName": "DetailBloc.title=",
+          "range": {
+            "endLine": 23,
+            "startLine": 23,
+          },
+        },
+      ],
+      "doc": "A bloc demonstrating every declaration-detail field Phase 2 extracts.",
+      "extendsType": {
+        "name": "Bloc",
+        "typeArgs": [
+          "DetailEvent",
+          "DetailState",
+        ],
+      },
+      "file": "fixtures/basic/declaration_detail.dart",
+      "id": "fixtures/basic/declaration_detail.dart#DetailBloc",
+      "implementsTypes": [
+        {
+          "name": "Disposable",
+          "typeArgs": [],
+        },
+        {
+          "name": "Comparable",
+          "typeArgs": [
+            "DetailBloc<E, S>",
+          ],
+        },
+      ],
+      "kind": "class",
+      "mixesIn": [
+        {
+          "name": "LoggerMixin",
+          "typeArgs": [],
+        },
+      ],
+      "modifiers": [
+        "abstract",
+        "base",
+      ],
+      "name": "DetailBloc",
+      "nameRange": {
+        "col": 21,
+        "line": 5,
+      },
+      "qualifiedName": "DetailBloc",
+      "range": {
+        "endLine": 24,
+        "startLine": 3,
+      },
+      "typeParameters": [
+        "E",
+        "S extends Object",
+      ],
+    },
+    {
+      "annotations": [],
+      "children": [],
+      "file": "fixtures/basic/declaration_detail.dart",
+      "id": "fixtures/basic/declaration_detail.dart#Shape",
+      "kind": "class",
+      "modifiers": [
+        "sealed",
+      ],
+      "name": "Shape",
+      "nameRange": {
+        "col": 14,
+        "line": 26,
+      },
+      "qualifiedName": "Shape",
+      "range": {
+        "endLine": 26,
+        "startLine": 26,
+      },
+    },
+    {
+      "annotations": [],
+      "children": [
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/declaration_detail.dart",
+          "id": "fixtures/basic/declaration_detail.dart#Status.active",
+          "kind": "field",
+          "modifiers": [],
+          "name": "active",
+          "nameRange": {
+            "col": 3,
+            "line": 29,
+          },
+          "parentId": "fixtures/basic/declaration_detail.dart#Status",
+          "qualifiedName": "Status.active",
+          "range": {
+            "endLine": 29,
+            "startLine": 29,
+          },
+        },
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/declaration_detail.dart",
+          "id": "fixtures/basic/declaration_detail.dart#Status.inactive",
+          "kind": "field",
+          "modifiers": [],
+          "name": "inactive",
+          "nameRange": {
+            "col": 3,
+            "line": 30,
+          },
+          "parentId": "fixtures/basic/declaration_detail.dart#Status",
+          "qualifiedName": "Status.inactive",
+          "range": {
+            "endLine": 30,
+            "startLine": 30,
+          },
+        },
+        {
+          "annotations": [
+            {
+              "name": "override",
+            },
+          ],
+          "children": [],
+          "file": "fixtures/basic/declaration_detail.dart",
+          "id": "fixtures/basic/declaration_detail.dart#Status.compareTo",
+          "kind": "method",
+          "modifiers": [],
+          "name": "compareTo",
+          "nameRange": {
+            "col": 7,
+            "line": 33,
+          },
+          "parameters": [
+            {
+              "name": "other",
+              "named": false,
+              "required": true,
+              "type": "Status",
+            },
+          ],
+          "parentId": "fixtures/basic/declaration_detail.dart#Status",
+          "qualifiedName": "Status.compareTo",
+          "range": {
+            "endLine": 33,
+            "startLine": 33,
+          },
+          "returnType": "int",
+        },
+      ],
+      "file": "fixtures/basic/declaration_detail.dart",
+      "id": "fixtures/basic/declaration_detail.dart#Status",
+      "implementsTypes": [
+        {
+          "name": "Comparable",
+          "typeArgs": [
+            "Status",
+          ],
+        },
+      ],
+      "kind": "enum",
+      "mixesIn": [
+        {
+          "name": "Describable",
+          "typeArgs": [],
+        },
+      ],
+      "modifiers": [],
+      "name": "Status",
+      "nameRange": {
+        "col": 6,
+        "line": 28,
+      },
+      "qualifiedName": "Status",
+      "range": {
+        "endLine": 34,
+        "startLine": 28,
+      },
+    },
+    {
+      "annotations": [
+        {
+          "args": "'use fetchSome'",
+          "name": "Deprecated",
+        },
+      ],
+      "children": [],
+      "doc": "Fetches everything eagerly when [eager] is set.",
+      "file": "fixtures/basic/declaration_detail.dart",
+      "id": "fixtures/basic/declaration_detail.dart#fetchAll",
+      "kind": "function",
+      "modifiers": [
+        "async",
+      ],
+      "name": "fetchAll",
+      "nameRange": {
+        "col": 19,
+        "line": 38,
+      },
+      "parameters": [
+        {
+          "name": "seed",
+          "named": false,
+          "required": true,
+          "type": "T",
+        },
+        {
+          "name": "eager",
+          "named": true,
+          "required": false,
+          "type": "bool",
+        },
+      ],
+      "qualifiedName": "fetchAll",
+      "range": {
+        "endLine": 38,
+        "startLine": 38,
+      },
+      "returnType": "Future<List<int>>",
+      "typeParameters": [
+        "T",
+      ],
+    },
+    {
+      "annotations": [],
+      "children": [],
+      "file": "fixtures/basic/declaration_detail.dart",
+      "id": "fixtures/basic/declaration_detail.dart#onEach",
+      "kind": "function",
+      "modifiers": [],
+      "name": "onEach",
+      "nameRange": {
+        "col": 6,
+        "line": 40,
+      },
+      "parameters": [
+        {
+          "name": "callback",
+          "named": false,
+          "required": true,
+          "type": "void Function(int)",
+        },
+        {
+          "name": "label",
+          "named": false,
+          "required": false,
+          "type": "String?",
+        },
+      ],
+      "qualifiedName": "onEach",
+      "range": {
+        "endLine": 40,
+        "startLine": 40,
+      },
+      "returnType": "void",
+    },
+    {
+      "annotations": [],
+      "children": [],
+      "file": "fixtures/basic/declaration_detail.dart",
+      "id": "fixtures/basic/declaration_detail.dart#JsonMap",
+      "kind": "typedef",
+      "modifiers": [],
+      "name": "JsonMap",
+      "nameRange": {
+        "col": 9,
+        "line": 42,
+      },
+      "qualifiedName": "JsonMap",
+      "range": {
+        "endLine": 42,
+        "startLine": 42,
+      },
+    },
+    {
+      "annotations": [],
+      "children": [],
+      "file": "fixtures/basic/declaration_detail.dart",
+      "id": "fixtures/basic/declaration_detail.dart#kTimeout",
+      "kind": "field",
+      "modifiers": [],
+      "name": "kTimeout",
+      "nameRange": {
+        "col": 16,
+        "line": 44,
+      },
+      "qualifiedName": "kTimeout",
+      "range": {
+        "endLine": 44,
+        "startLine": 44,
+      },
+    },
+  ],
+}
+`;
+
 exports[`extractSymbols > matches snapshot: settings_screen.dart 1`] = `
 {
   "parseErrors": [],
@@ -217,12 +758,26 @@ exports[`extractSymbols > matches snapshot: settings_screen.dart 1`] = `
           "file": "fixtures/basic/settings_screen.dart",
           "id": "fixtures/basic/settings_screen.dart#SettingsScreen.SettingsScreen",
           "kind": "constructor",
-          "modifiers": [],
+          "modifiers": [
+            "const",
+          ],
           "name": "SettingsScreen",
           "nameRange": {
             "col": 9,
             "line": 4,
           },
+          "parameters": [
+            {
+              "name": "key",
+              "named": true,
+              "required": false,
+            },
+            {
+              "name": "title",
+              "named": true,
+              "required": true,
+            },
+          ],
           "parentId": "fixtures/basic/settings_screen.dart#SettingsScreen",
           "qualifiedName": "SettingsScreen.SettingsScreen",
           "range": {
@@ -236,7 +791,9 @@ exports[`extractSymbols > matches snapshot: settings_screen.dart 1`] = `
           "file": "fixtures/basic/settings_screen.dart",
           "id": "fixtures/basic/settings_screen.dart#SettingsScreen.title",
           "kind": "field",
-          "modifiers": [],
+          "modifiers": [
+            "final",
+          ],
           "name": "title",
           "nameRange": {
             "col": 16,
@@ -248,9 +805,14 @@ exports[`extractSymbols > matches snapshot: settings_screen.dart 1`] = `
             "endLine": 6,
             "startLine": 6,
           },
+          "returnType": "String",
         },
         {
-          "annotations": [],
+          "annotations": [
+            {
+              "name": "override",
+            },
+          ],
           "children": [],
           "file": "fixtures/basic/settings_screen.dart",
           "id": "fixtures/basic/settings_screen.dart#SettingsScreen.createState",
@@ -267,8 +829,13 @@ exports[`extractSymbols > matches snapshot: settings_screen.dart 1`] = `
             "endLine": 9,
             "startLine": 9,
           },
+          "returnType": "State<SettingsScreen>",
         },
       ],
+      "extendsType": {
+        "name": "StatefulWidget",
+        "typeArgs": [],
+      },
       "file": "fixtures/basic/settings_screen.dart",
       "id": "fixtures/basic/settings_screen.dart#SettingsScreen",
       "kind": "class",
@@ -305,6 +872,7 @@ exports[`extractSymbols > matches snapshot: settings_screen.dart 1`] = `
             "endLine": 13,
             "startLine": 13,
           },
+          "returnType": "bool",
         },
         {
           "annotations": [],
@@ -318,15 +886,28 @@ exports[`extractSymbols > matches snapshot: settings_screen.dart 1`] = `
             "col": 8,
             "line": 15,
           },
+          "parameters": [
+            {
+              "name": "value",
+              "named": false,
+              "required": true,
+              "type": "bool",
+            },
+          ],
           "parentId": "fixtures/basic/settings_screen.dart#_SettingsScreenState",
           "qualifiedName": "_SettingsScreenState._toggleNotifications",
           "range": {
             "endLine": 19,
             "startLine": 15,
           },
+          "returnType": "void",
         },
         {
-          "annotations": [],
+          "annotations": [
+            {
+              "name": "override",
+            },
+          ],
           "children": [],
           "file": "fixtures/basic/settings_screen.dart",
           "id": "fixtures/basic/settings_screen.dart#_SettingsScreenState.build",
@@ -337,14 +918,29 @@ exports[`extractSymbols > matches snapshot: settings_screen.dart 1`] = `
             "col": 10,
             "line": 22,
           },
+          "parameters": [
+            {
+              "name": "context",
+              "named": false,
+              "required": true,
+              "type": "BuildContext",
+            },
+          ],
           "parentId": "fixtures/basic/settings_screen.dart#_SettingsScreenState",
           "qualifiedName": "_SettingsScreenState.build",
           "range": {
             "endLine": 35,
             "startLine": 22,
           },
+          "returnType": "Widget",
         },
       ],
+      "extendsType": {
+        "name": "State",
+        "typeArgs": [
+          "SettingsScreen",
+        ],
+      },
       "file": "fixtures/basic/settings_screen.dart",
       "id": "fixtures/basic/settings_screen.dart#_SettingsScreenState",
       "kind": "class",
@@ -389,6 +985,7 @@ exports[`extractSymbols > matches snapshot: string_extensions.dart 1`] = `
             "endLine": 2,
             "startLine": 2,
           },
+          "returnType": "List<String>",
         },
         {
           "annotations": [],
@@ -408,6 +1005,7 @@ exports[`extractSymbols > matches snapshot: string_extensions.dart 1`] = `
             "endLine": 4,
             "startLine": 4,
           },
+          "returnType": "bool",
         },
       ],
       "file": "fixtures/basic/string_extensions.dart",
@@ -446,6 +1044,7 @@ exports[`extractSymbols > matches snapshot: string_extensions.dart 1`] = `
             "endLine": 8,
             "startLine": 8,
           },
+          "returnType": "bool",
         },
         {
           "annotations": [],
@@ -459,12 +1058,21 @@ exports[`extractSymbols > matches snapshot: string_extensions.dart 1`] = `
             "col": 10,
             "line": 10,
           },
+          "parameters": [
+            {
+              "name": "max",
+              "named": false,
+              "required": true,
+              "type": "int",
+            },
+          ],
           "parentId": "fixtures/basic/string_extensions.dart#StringX",
           "qualifiedName": "StringX.truncate",
           "range": {
             "endLine": 13,
             "startLine": 10,
           },
+          "returnType": "String",
         },
       ],
       "file": "fixtures/basic/string_extensions.dart",
@@ -497,18 +1105,29 @@ exports[`extractSymbols > matches snapshot: string_extensions.dart 1`] = `
             "col": 10,
             "line": 17,
           },
+          "parameters": [
+            {
+              "name": "input",
+              "named": false,
+              "required": true,
+              "type": "String",
+            },
+          ],
           "parentId": "fixtures/basic/string_extensions.dart#Formatter",
           "qualifiedName": "Formatter.format",
           "range": {
             "endLine": 17,
             "startLine": 17,
           },
+          "returnType": "String",
         },
       ],
       "file": "fixtures/basic/string_extensions.dart",
       "id": "fixtures/basic/string_extensions.dart#Formatter",
       "kind": "class",
-      "modifiers": [],
+      "modifiers": [
+        "abstract",
+      ],
       "name": "Formatter",
       "nameRange": {
         "col": 16,
@@ -534,7 +1153,9 @@ exports[`extractSymbols > matches snapshot: user_bloc.dart 1`] = `
       "file": "fixtures/basic/user_bloc.dart",
       "id": "fixtures/basic/user_bloc.dart#UserEvent",
       "kind": "class",
-      "modifiers": [],
+      "modifiers": [
+        "sealed",
+      ],
       "name": "UserEvent",
       "nameRange": {
         "col": 14,
@@ -555,7 +1176,9 @@ exports[`extractSymbols > matches snapshot: user_bloc.dart 1`] = `
           "file": "fixtures/basic/user_bloc.dart",
           "id": "fixtures/basic/user_bloc.dart#LoadUser.userId",
           "kind": "field",
-          "modifiers": [],
+          "modifiers": [
+            "final",
+          ],
           "name": "userId",
           "nameRange": {
             "col": 16,
@@ -567,6 +1190,7 @@ exports[`extractSymbols > matches snapshot: user_bloc.dart 1`] = `
             "endLine": 8,
             "startLine": 8,
           },
+          "returnType": "String",
         },
         {
           "annotations": [],
@@ -580,6 +1204,13 @@ exports[`extractSymbols > matches snapshot: user_bloc.dart 1`] = `
             "col": 3,
             "line": 9,
           },
+          "parameters": [
+            {
+              "name": "userId",
+              "named": false,
+              "required": true,
+            },
+          ],
           "parentId": "fixtures/basic/user_bloc.dart#LoadUser",
           "qualifiedName": "LoadUser.LoadUser",
           "range": {
@@ -588,10 +1219,16 @@ exports[`extractSymbols > matches snapshot: user_bloc.dart 1`] = `
           },
         },
       ],
+      "extendsType": {
+        "name": "UserEvent",
+        "typeArgs": [],
+      },
       "file": "fixtures/basic/user_bloc.dart",
       "id": "fixtures/basic/user_bloc.dart#LoadUser",
       "kind": "class",
-      "modifiers": [],
+      "modifiers": [
+        "final",
+      ],
       "name": "LoadUser",
       "nameRange": {
         "col": 13,
@@ -606,10 +1243,16 @@ exports[`extractSymbols > matches snapshot: user_bloc.dart 1`] = `
     {
       "annotations": [],
       "children": [],
+      "extendsType": {
+        "name": "UserEvent",
+        "typeArgs": [],
+      },
       "file": "fixtures/basic/user_bloc.dart",
       "id": "fixtures/basic/user_bloc.dart#RefreshUser",
       "kind": "class",
-      "modifiers": [],
+      "modifiers": [
+        "final",
+      ],
       "name": "RefreshUser",
       "nameRange": {
         "col": 13,
@@ -630,7 +1273,9 @@ exports[`extractSymbols > matches snapshot: user_bloc.dart 1`] = `
           "file": "fixtures/basic/user_bloc.dart",
           "id": "fixtures/basic/user_bloc.dart#UserBloc._repository",
           "kind": "field",
-          "modifiers": [],
+          "modifiers": [
+            "final",
+          ],
           "name": "_repository",
           "nameRange": {
             "col": 24,
@@ -642,6 +1287,7 @@ exports[`extractSymbols > matches snapshot: user_bloc.dart 1`] = `
             "endLine": 15,
             "startLine": 15,
           },
+          "returnType": "UserRepository",
         },
         {
           "annotations": [],
@@ -655,6 +1301,13 @@ exports[`extractSymbols > matches snapshot: user_bloc.dart 1`] = `
             "col": 3,
             "line": 17,
           },
+          "parameters": [
+            {
+              "name": "_repository",
+              "named": false,
+              "required": true,
+            },
+          ],
           "parentId": "fixtures/basic/user_bloc.dart#UserBloc",
           "qualifiedName": "UserBloc.UserBloc",
           "range": {
@@ -668,18 +1321,35 @@ exports[`extractSymbols > matches snapshot: user_bloc.dart 1`] = `
           "file": "fixtures/basic/user_bloc.dart",
           "id": "fixtures/basic/user_bloc.dart#UserBloc._onLoad",
           "kind": "method",
-          "modifiers": [],
+          "modifiers": [
+            "async",
+          ],
           "name": "_onLoad",
           "nameRange": {
             "col": 16,
             "line": 22,
           },
+          "parameters": [
+            {
+              "name": "event",
+              "named": false,
+              "required": true,
+              "type": "LoadUser",
+            },
+            {
+              "name": "emit",
+              "named": false,
+              "required": true,
+              "type": "Emitter<UserState>",
+            },
+          ],
           "parentId": "fixtures/basic/user_bloc.dart#UserBloc",
           "qualifiedName": "UserBloc._onLoad",
           "range": {
             "endLine": 26,
             "startLine": 22,
           },
+          "returnType": "Future<void>",
         },
         {
           "annotations": [],
@@ -687,20 +1357,44 @@ exports[`extractSymbols > matches snapshot: user_bloc.dart 1`] = `
           "file": "fixtures/basic/user_bloc.dart",
           "id": "fixtures/basic/user_bloc.dart#UserBloc._onRefresh",
           "kind": "method",
-          "modifiers": [],
+          "modifiers": [
+            "async",
+          ],
           "name": "_onRefresh",
           "nameRange": {
             "col": 16,
             "line": 28,
           },
+          "parameters": [
+            {
+              "name": "event",
+              "named": false,
+              "required": true,
+              "type": "RefreshUser",
+            },
+            {
+              "name": "emit",
+              "named": false,
+              "required": true,
+              "type": "Emitter<UserState>",
+            },
+          ],
           "parentId": "fixtures/basic/user_bloc.dart#UserBloc",
           "qualifiedName": "UserBloc._onRefresh",
           "range": {
             "endLine": 31,
             "startLine": 28,
           },
+          "returnType": "Future<void>",
         },
       ],
+      "extendsType": {
+        "name": "Bloc",
+        "typeArgs": [
+          "UserEvent",
+          "UserState",
+        ],
+      },
       "file": "fixtures/basic/user_bloc.dart",
       "id": "fixtures/basic/user_bloc.dart#UserBloc",
       "kind": "class",
@@ -827,7 +1521,9 @@ exports[`extractSymbols > matches snapshot: user_model.dart 1`] = `
           "file": "fixtures/basic/user_model.dart",
           "id": "fixtures/basic/user_model.dart#User.id",
           "kind": "field",
-          "modifiers": [],
+          "modifiers": [
+            "final",
+          ],
           "name": "id",
           "nameRange": {
             "col": 16,
@@ -839,6 +1535,7 @@ exports[`extractSymbols > matches snapshot: user_model.dart 1`] = `
             "endLine": 6,
             "startLine": 6,
           },
+          "returnType": "String",
         },
         {
           "annotations": [],
@@ -846,7 +1543,9 @@ exports[`extractSymbols > matches snapshot: user_model.dart 1`] = `
           "file": "fixtures/basic/user_model.dart",
           "id": "fixtures/basic/user_model.dart#User.name",
           "kind": "field",
-          "modifiers": [],
+          "modifiers": [
+            "final",
+          ],
           "name": "name",
           "nameRange": {
             "col": 16,
@@ -858,6 +1557,7 @@ exports[`extractSymbols > matches snapshot: user_model.dart 1`] = `
             "endLine": 7,
             "startLine": 7,
           },
+          "returnType": "String",
         },
         {
           "annotations": [],
@@ -865,7 +1565,9 @@ exports[`extractSymbols > matches snapshot: user_model.dart 1`] = `
           "file": "fixtures/basic/user_model.dart",
           "id": "fixtures/basic/user_model.dart#User.role",
           "kind": "field",
-          "modifiers": [],
+          "modifiers": [
+            "final",
+          ],
           "name": "role",
           "nameRange": {
             "col": 18,
@@ -877,6 +1579,7 @@ exports[`extractSymbols > matches snapshot: user_model.dart 1`] = `
             "endLine": 8,
             "startLine": 8,
           },
+          "returnType": "UserRole",
         },
         {
           "annotations": [],
@@ -884,7 +1587,10 @@ exports[`extractSymbols > matches snapshot: user_model.dart 1`] = `
           "file": "fixtures/basic/user_model.dart",
           "id": "fixtures/basic/user_model.dart#User.maxNameLength",
           "kind": "field",
-          "modifiers": [],
+          "modifiers": [
+            "static",
+            "const",
+          ],
           "name": "maxNameLength",
           "nameRange": {
             "col": 20,
@@ -896,6 +1602,7 @@ exports[`extractSymbols > matches snapshot: user_model.dart 1`] = `
             "endLine": 9,
             "startLine": 9,
           },
+          "returnType": "int",
         },
         {
           "annotations": [],
@@ -903,12 +1610,31 @@ exports[`extractSymbols > matches snapshot: user_model.dart 1`] = `
           "file": "fixtures/basic/user_model.dart",
           "id": "fixtures/basic/user_model.dart#User.User",
           "kind": "constructor",
-          "modifiers": [],
+          "modifiers": [
+            "const",
+          ],
           "name": "User",
           "nameRange": {
             "col": 9,
             "line": 11,
           },
+          "parameters": [
+            {
+              "name": "id",
+              "named": true,
+              "required": true,
+            },
+            {
+              "name": "name",
+              "named": true,
+              "required": true,
+            },
+            {
+              "name": "role",
+              "named": true,
+              "required": false,
+            },
+          ],
           "parentId": "fixtures/basic/user_model.dart#User",
           "qualifiedName": "User.User",
           "range": {
@@ -941,12 +1667,22 @@ exports[`extractSymbols > matches snapshot: user_model.dart 1`] = `
           "file": "fixtures/basic/user_model.dart",
           "id": "fixtures/basic/user_model.dart#User.fromJson",
           "kind": "constructor",
-          "modifiers": [],
+          "modifiers": [
+            "factory",
+          ],
           "name": "fromJson",
           "nameRange": {
             "col": 16,
             "line": 18,
           },
+          "parameters": [
+            {
+              "name": "json",
+              "named": false,
+              "required": true,
+              "type": "Json",
+            },
+          ],
           "parentId": "fixtures/basic/user_model.dart#User",
           "qualifiedName": "User.fromJson",
           "range": {
@@ -972,6 +1708,7 @@ exports[`extractSymbols > matches snapshot: user_model.dart 1`] = `
             "endLine": 25,
             "startLine": 25,
           },
+          "returnType": "bool",
         },
         {
           "annotations": [],
@@ -991,6 +1728,7 @@ exports[`extractSymbols > matches snapshot: user_model.dart 1`] = `
             "endLine": 27,
             "startLine": 27,
           },
+          "returnType": "Json",
         },
       ],
       "file": "fixtures/basic/user_model.dart",
@@ -1029,6 +1767,7 @@ exports[`extractSymbols > matches snapshot: user_model.dart 1`] = `
             "endLine": 31,
             "startLine": 31,
           },
+          "returnType": "bool",
         },
       ],
       "file": "fixtures/basic/user_model.dart",

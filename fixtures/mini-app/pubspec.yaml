@@ -1,0 +1,4 @@
+name: mini_app
+description: Integration-test fixture workspace (root package).
+environment:
+  sdk: ^3.12.0

@@ -83,6 +83,94 @@ describe('extractSymbols', () => {
     expect(byName.get('describeLocation')?.kind).toBe('function');
   });
 
+  describe('declaration detail (Phase 2)', () => {
+    let symbols: Symbol[];
+    let all: Symbol[];
+
+    beforeAll(async () => {
+      ({ symbols } = await extractFixture('declaration_detail.dart'));
+      all = flatten(symbols);
+    });
+
+    it('extracts class annotations, modifiers, doc, type params, super types', () => {
+      const bloc = symbols.find((s) => s.name === 'DetailBloc');
+      expect(bloc?.annotations).toEqual([
+        { name: 'immutable' },
+        { name: 'RoutePage', args: "name: 'DetailRoute'" },
+      ]);
+      expect(bloc?.modifiers).toEqual(['abstract', 'base']);
+      expect(bloc?.doc).toBe(
+        'A bloc demonstrating every declaration-detail field Phase 2 extracts.',
+      );
+      expect(bloc?.typeParameters).toEqual(['E', 'S extends Object']);
+      expect(bloc?.extendsType).toEqual({
+        name: 'Bloc',
+        typeArgs: ['DetailEvent', 'DetailState'],
+      });
+      expect(bloc?.mixesIn).toEqual([{ name: 'LoggerMixin', typeArgs: [] }]);
+      expect(bloc?.implementsTypes).toEqual([
+        { name: 'Disposable', typeArgs: [] },
+        { name: 'Comparable', typeArgs: ['DetailBloc<E, S>'] },
+      ]);
+    });
+
+    it('extracts field modifiers and verbatim type', () => {
+      const maxRetries = all.find((s) => s.name === 'maxRetries');
+      expect(maxRetries?.modifiers).toEqual(expect.arrayContaining(['static', 'const']));
+      expect(maxRetries?.returnType).toBe('int');
+      const label = all.find((s) => s.name === '_label');
+      expect(label?.modifiers).toEqual(expect.arrayContaining(['late', 'final']));
+      expect(label?.returnType).toBe('String?');
+    });
+
+    it('extracts constructor parameters incl. this. and required named', () => {
+      const ctor = all.find((s) => s.qualifiedName === 'DetailBloc.DetailBloc');
+      expect(ctor?.modifiers).toContain('const');
+      expect(ctor?.doc).toBe('Creates the bloc.');
+      expect(ctor?.parameters).toEqual([
+        { name: '_label', named: false, required: true },
+        { name: 'repo', type: 'Repo', named: true, required: true },
+        { name: 'retries', type: 'int', named: true, required: false },
+      ]);
+      const factory = all.find((s) => s.qualifiedName === 'DetailBloc.standard');
+      expect(factory?.kind).toBe('constructor');
+      expect(factory?.modifiers).toContain('factory');
+    });
+
+    it('extracts method return type, params, async modifier, sibling annotations', () => {
+      const load = all.find((s) => s.qualifiedName === 'DetailBloc.load');
+      expect(load?.annotations).toEqual([{ name: 'override' }]);
+      expect(load?.returnType).toBe('Future<void>');
+      expect(load?.modifiers).toContain('async');
+      expect(load?.parameters).toEqual([
+        { name: 'id', type: 'String', named: false, required: true },
+        { name: 'depth', type: 'int', named: false, required: false },
+      ]);
+      const format = all.find((s) => s.qualifiedName === 'DetailBloc.format');
+      expect(format?.modifiers).toContain('static');
+    });
+
+    it('extracts sealed modifier and enum with/implements', () => {
+      expect(symbols.find((s) => s.name === 'Shape')?.modifiers).toEqual(['sealed']);
+      const status = symbols.find((s) => s.name === 'Status');
+      expect(status?.mixesIn).toEqual([{ name: 'Describable', typeArgs: [] }]);
+      expect(status?.implementsTypes).toEqual([{ name: 'Comparable', typeArgs: ['Status'] }]);
+    });
+
+    it('extracts top-level function detail and function-typed params', () => {
+      const fetchAll = symbols.find((s) => s.name === 'fetchAll');
+      expect(fetchAll?.doc).toBe('Fetches everything eagerly when [eager] is set.');
+      expect(fetchAll?.annotations).toEqual([{ name: 'Deprecated', args: "'use fetchSome'" }]);
+      expect(fetchAll?.returnType).toBe('Future<List<int>>');
+      expect(fetchAll?.typeParameters).toEqual(['T']);
+      const onEach = symbols.find((s) => s.name === 'onEach');
+      expect(onEach?.parameters).toEqual([
+        { name: 'callback', type: 'void Function(int)', named: false, required: true },
+        { name: 'label', type: 'String?', named: false, required: false },
+      ]);
+    });
+  });
+
   it('survives syntax errors and extracts what is valid (error recovery)', async () => {
     const { symbols, parseErrors } = await extractFixture('broken.dart');
     expect(parseErrors.length).toBeGreaterThan(0);

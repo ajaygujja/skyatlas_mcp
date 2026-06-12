@@ -1,0 +1,4 @@
+name: shared_ui
+description: Nested package for monorepo package-map coverage.
+environment:
+  sdk: ^3.12.0

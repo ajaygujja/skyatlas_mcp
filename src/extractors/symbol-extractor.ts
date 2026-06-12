@@ -1,8 +1,9 @@
 /**
- * First extractor (Phase 1): classes, mixins, enums, extensions, functions,
- * methods, getters/setters, constructors, fields — names, kinds, ranges,
- * parent/child nesting. Declaration detail (annotations, type params,
- * extends/implements) is Phase 2.
+ * Symbol extractor: classes, mixins, enums, extensions, functions, methods,
+ * getters/setters, constructors, fields — names, kinds, ranges, parent/child
+ * nesting, plus declaration detail (annotations, type params,
+ * extends/implements/with, modifiers, return types, parameters, docs)
+ * via declaration-detail.ts.
  *
  * Pure: CST in → data out, no I/O (TECHNICAL_DESIGN.md §9.1).
  *
@@ -12,12 +13,32 @@
  */
 import type { Node, Tree } from 'web-tree-sitter';
 import type { Symbol, SymbolKind } from '../model/symbol.js';
+import {
+  parseAnnotation,
+  parseBodyModifier,
+  parseDocFirstLine,
+  parseLeadingType,
+  parseModifiers,
+  parseParameters,
+  parseSuperTypes,
+  parseTypeParameters,
+} from './declaration-detail.js';
 
 export interface ExtractionResult {
   /** Top-level symbols; nested declarations hang off `children`. */
   symbols: Symbol[];
   /** Human-readable notes for ERROR nodes — extraction continued past them. */
   parseErrors: string[];
+}
+
+/**
+ * Doc comments and annotations preceding a declaration as SIBLINGS (observed:
+ * always true for docs; true for annotations on methods/functions/fields,
+ * while class-like declarations carry annotations as direct children instead).
+ */
+interface Pending {
+  docs: Node[];
+  annotations: Node[];
 }
 
 export function extractSymbols(tree: Tree, relPath: string): ExtractionResult {
@@ -33,21 +54,34 @@ export function extractSymbols(tree: Tree, relPath: string): ExtractionResult {
  * SIBLINGS, not parent/child:
  *   (function_signature (identifier) (formal_parameter_list)) (function_body ...)
  * so the walk pairs each signature with a directly-following `function_body`
- * to compute the full range.
+ * to compute the full range. Likewise `documentation_comment` and (for
+ * non-class-like declarations) `annotation` precede their declaration as
+ * siblings — accumulated in `pending` and attached to the next declaration.
  */
 function extractScope(scope: Node, relPath: string, parent: Symbol | undefined): Symbol[] {
   const out: Symbol[] = [];
   const children = scope.namedChildren;
+  let pending: Pending = { docs: [], annotations: [] };
 
   for (let i = 0; i < children.length; i++) {
     const node = children[i];
     if (node === undefined) continue;
+    if (node.type === 'documentation_comment') {
+      pending.docs.push(node);
+      continue;
+    }
+    if (node.type === 'annotation') {
+      pending.annotations.push(node);
+      continue;
+    }
+
     const next = children[i + 1];
     const body = next?.type === 'function_body' ? next : undefined;
 
-    const extracted = extractDeclaration(node, body, relPath, parent);
+    const extracted = extractDeclaration(node, body, relPath, parent, pending);
     out.push(...extracted);
     if (body && extracted.length > 0) i++; // body consumed by the signature
+    pending = { docs: [], annotations: [] };
   }
   return out;
 }
@@ -57,33 +91,38 @@ function extractDeclaration(
   followingBody: Node | undefined,
   relPath: string,
   parent: Symbol | undefined,
+  pending: Pending,
 ): Symbol[] {
   switch (node.type) {
-    // Observed: (class_definition (identifier) (type_parameters)? (superclass)? (interfaces)? (class_body))
+    // Observed: (class_definition (annotation)* (abstract)? (identifier)
+    //   (type_parameters)? (superclass)? (interfaces)? (class_body))
     case 'class_definition':
-      return containerSymbol(node, 'class', 'class_body', relPath, parent);
+      return containerSymbol(node, 'class', 'class_body', relPath, parent, pending);
 
     // Observed: (mixin_declaration (mixin) (identifier) (class_body))
     case 'mixin_declaration':
-      return containerSymbol(node, 'mixin', 'class_body', relPath, parent);
+      return containerSymbol(node, 'mixin', 'class_body', relPath, parent, pending);
 
-    // Observed: (enum_declaration (identifier) (enum_body (enum_constant (identifier))*))
+    // Observed: (enum_declaration (identifier) (mixins)? (interfaces)?
+    //   (enum_body (enum_constant (identifier))*))
     case 'enum_declaration':
-      return containerSymbol(node, 'enum', 'enum_body', relPath, parent);
+      return containerSymbol(node, 'enum', 'enum_body', relPath, parent, pending);
 
     // Observed: (extension_declaration (identifier) (type_identifier) (extension_body))
     case 'extension_declaration':
-      return containerSymbol(node, 'extension', 'extension_body', relPath, parent);
+      return containerSymbol(node, 'extension', 'extension_body', relPath, parent, pending);
 
     // Observed: (extension_type_declaration (identifier) (representation_declaration) (class_body))
     case 'extension_type_declaration':
-      return containerSymbol(node, 'extensionType', 'class_body', relPath, parent);
+      return containerSymbol(node, 'extensionType', 'class_body', relPath, parent, pending);
 
     // Observed: (type_alias (type_identifier) ...) — first type_identifier is the alias name
     case 'type_alias': {
       const nameNode = node.namedChildren.find((c) => c.type === 'type_identifier');
       if (!nameNode) return [];
-      return [leafSymbol(node, nameNode, 'typedef', relPath, parent)];
+      const sym = leafSymbol(node, nameNode, 'typedef', relPath, parent);
+      applyPending(sym, pending);
+      return [sym];
     }
 
     // Top-level function. Observed: (function_signature (type)? (identifier) (formal_parameter_list))
@@ -95,6 +134,7 @@ function extractDeclaration(
         parent ? 'method' : 'function',
         relPath,
         parent,
+        pending,
       );
 
     // Observed wrapper for class members:
@@ -102,7 +142,7 @@ function extractDeclaration(
     case 'method_signature': {
       const inner = node.namedChildren[0];
       if (!inner) return [];
-      return extractMemberSignature(node, inner, followingBody, relPath, parent);
+      return extractMemberSignature(node, inner, followingBody, relPath, parent, pending);
     }
 
     // Observed: class-body `declaration` wraps constructors, abstract method
@@ -128,16 +168,18 @@ function extractDeclaration(
         inner.type === 'initialized_identifier_list' ||
         inner.type === 'static_final_declaration_list'
       ) {
-        return fieldSymbols(node, inner, relPath, parent);
+        return fieldSymbols(node, inner, relPath, parent, pending);
       }
-      return extractMemberSignature(node, inner, followingBody, relPath, parent);
+      return extractMemberSignature(node, inner, followingBody, relPath, parent, pending);
     }
 
     // Observed: (enum_constant (identifier))
     case 'enum_constant': {
       const nameNode = node.namedChildren.find((c) => c.type === 'identifier');
       if (!nameNode) return [];
-      return [leafSymbol(node, nameNode, 'field', relPath, parent)];
+      const sym = leafSymbol(node, nameNode, 'field', relPath, parent);
+      applyPending(sym, pending);
+      return [sym];
     }
 
     // Top-level variables. Observed at program level as flat siblings:
@@ -145,7 +187,7 @@ function extractDeclaration(
     //   (type_identifier) (initialized_identifier_list (initialized_identifier (identifier)))
     case 'static_final_declaration_list':
     case 'initialized_identifier_list':
-      return fieldSymbols(node, node, relPath, parent);
+      return fieldSymbols(node, node, relPath, parent, pending);
 
     default:
       return [];
@@ -159,10 +201,26 @@ function containerSymbol(
   bodyType: string,
   relPath: string,
   parent: Symbol | undefined,
+  pending: Pending,
 ): Symbol[] {
   const nameNode = node.namedChildren.find((c) => c.type === 'identifier');
   if (!nameNode) return [];
   const sym = leafSymbol(node, nameNode, kind, relPath, parent);
+
+  // Class-like declarations carry their annotations as direct children
+  // (observed), unlike members where they precede as siblings.
+  const ownAnnotations = node.namedChildren.filter((c) => c.type === 'annotation');
+  sym.annotations = [...pending.annotations, ...ownAnnotations].map(parseAnnotation);
+  sym.modifiers = parseModifiers(node);
+  const doc = parseDocFirstLine(pending.docs);
+  if (doc) sym.doc = doc;
+  const typeParameters = parseTypeParameters(node);
+  if (typeParameters) sym.typeParameters = typeParameters;
+  const { extendsType, implementsTypes, mixesIn } = parseSuperTypes(node);
+  if (extendsType) sym.extendsType = extendsType;
+  if (implementsTypes) sym.implementsTypes = implementsTypes;
+  if (mixesIn) sym.mixesIn = mixesIn;
+
   const bodyNode = node.namedChildren.find((c) => c.type === bodyType);
   if (bodyNode) sym.children = extractScope(bodyNode, relPath, sym);
   return [sym];
@@ -175,6 +233,7 @@ function extractMemberSignature(
   followingBody: Node | undefined,
   relPath: string,
   parent: Symbol | undefined,
+  pending: Pending,
 ): Symbol[] {
   switch (inner.type) {
     case 'function_signature':
@@ -185,15 +244,17 @@ function extractMemberSignature(
         parent ? 'method' : 'function',
         relPath,
         parent,
+        pending,
       );
     // Observed: (getter_signature (type)? (identifier)) — no formal_parameter_list
     case 'getter_signature':
-      return signatureSymbol(outer, inner, followingBody, 'getter', relPath, parent);
+      return signatureSymbol(outer, inner, followingBody, 'getter', relPath, parent, pending);
     case 'setter_signature':
-      return signatureSymbol(outer, inner, followingBody, 'setter', relPath, parent);
+      return signatureSymbol(outer, inner, followingBody, 'setter', relPath, parent, pending);
     // Observed: (constructor_signature (identifier) (identifier)? (formal_parameter_list))
     // Two identifiers = named constructor `Circle.unit`.
     // Observed: (constant_constructor_signature (const_builtin) (identifier) (formal_parameter_list))
+    // Observed: (factory_constructor_signature (factory) (identifier) (identifier)? ...)
     case 'constructor_signature':
     case 'constant_constructor_signature':
     case 'factory_constructor_signature': {
@@ -202,6 +263,10 @@ function extractMemberSignature(
       if (!nameNode) return [];
       const sym = leafSymbol(outer, nameNode, 'constructor', relPath, parent);
       if (followingBody) sym.range.endLine = followingBody.endPosition.row + 1;
+      applyPending(sym, pending);
+      sym.modifiers = parseModifiers(outer !== inner ? outer : undefined, inner);
+      const parameters = parseParameters(inner);
+      if (parameters) sym.parameters = parameters;
       return [sym];
     }
     default:
@@ -216,11 +281,23 @@ function signatureSymbol(
   kind: SymbolKind,
   relPath: string,
   parent: Symbol | undefined,
+  pending: Pending,
 ): Symbol[] {
   const nameNode = signature.namedChildren.find((c) => c.type === 'identifier');
   if (!nameNode) return [];
   const sym = leafSymbol(outer, nameNode, kind, relPath, parent);
   if (followingBody) sym.range.endLine = followingBody.endPosition.row + 1;
+
+  applyPending(sym, pending);
+  sym.modifiers = parseModifiers(outer !== signature ? outer : undefined, signature);
+  const bodyModifier = parseBodyModifier(followingBody);
+  if (bodyModifier) sym.modifiers.push(bodyModifier);
+  const typeParameters = parseTypeParameters(signature);
+  if (typeParameters) sym.typeParameters = typeParameters;
+  const returnType = parseLeadingType(signature, nameNode);
+  if (returnType) sym.returnType = returnType;
+  const parameters = parseParameters(signature);
+  if (parameters) sym.parameters = parameters;
   return [sym];
 }
 
@@ -228,14 +305,21 @@ function signatureSymbol(
  * One Symbol per declarator. Observed:
  *   (initialized_identifier_list (initialized_identifier (identifier) <init expr>?)+)
  *   (static_final_declaration_list (static_final_declaration (identifier) <init expr>)+)
+ * The declared type and modifiers live on the OUTER node (`declaration` or the
+ * program-level sibling run) and are shared by every declarator in the list.
  */
 function fieldSymbols(
   outer: Node,
   list: Node,
   relPath: string,
   parent: Symbol | undefined,
+  pending: Pending,
 ): Symbol[] {
   const out: Symbol[] = [];
+  const modifiers = parseModifiers(outer);
+  // Field type is "returnType" in the model: verbatim leading type text (§5.1).
+  const fieldType = outer !== list ? parseLeadingType(outer, list) : undefined;
+
   for (const declarator of list.namedChildren) {
     if (
       declarator.type !== 'initialized_identifier' &&
@@ -245,9 +329,22 @@ function fieldSymbols(
     }
     const nameNode = declarator.namedChildren.find((c) => c.type === 'identifier');
     if (!nameNode) continue;
-    out.push(leafSymbol(outer, nameNode, 'field', relPath, parent));
+    const sym = leafSymbol(outer, nameNode, 'field', relPath, parent);
+    applyPending(sym, pending);
+    sym.modifiers = [...modifiers];
+    if (fieldType) sym.returnType = fieldType;
+    out.push(sym);
   }
   return out;
+}
+
+/** Attach sibling-style annotations and doc comment to a symbol. */
+function applyPending(sym: Symbol, pending: Pending): void {
+  if (pending.annotations.length > 0) {
+    sym.annotations = pending.annotations.map(parseAnnotation);
+  }
+  const doc = parseDocFirstLine(pending.docs);
+  if (doc) sym.doc = doc;
 }
 
 function leafSymbol(
