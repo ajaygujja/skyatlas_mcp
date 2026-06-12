@@ -8,6 +8,7 @@ import type { ProjectIndex } from './index/project-index.js';
 import { registerGetProjectMap } from './tools/get-project-map.js';
 import { registerFindSymbol } from './tools/find-symbol.js';
 import { registerGetSymbol } from './tools/get-symbol.js';
+import { registerGetWidgetTree } from './tools/get-widget-tree.js';
 import { logger } from './shared/logger.js';
 
 const SERVER_NAME = 'flutter-intel';
@@ -18,6 +19,7 @@ export function createServer(getIndex: () => Promise<ProjectIndex>): McpServer {
   registerGetProjectMap(server, getIndex);
   registerFindSymbol(server, getIndex);
   registerGetSymbol(server, getIndex);
+  registerGetWidgetTree(server, getIndex);
   return server;
 }
 

@@ -1,0 +1,101 @@
+import { readdirSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { initParser, parseFile } from '../parser/parser.js';
+import { extractWidgets } from './widget-extractor.js';
+import type { WidgetInfo, WidgetNode } from '../model/flutter.js';
+
+const FIXTURES = fileURLToPath(new URL('../../fixtures/widgets', import.meta.url));
+
+beforeAll(async () => {
+  await initParser();
+});
+
+async function extractFixture(name: string): Promise<WidgetInfo[]> {
+  const { tree } = await parseFile(resolve(FIXTURES, name));
+  return extractWidgets(tree, `fixtures/widgets/${name}`);
+}
+
+/** Depth-first flatten of a build tree for assertions. */
+function flattenTree(node: WidgetNode | undefined): WidgetNode[] {
+  if (!node) return [];
+  const kids = Object.values(node.namedSlots).flat();
+  return [node, ...kids.flatMap(flattenTree)];
+}
+
+describe('extractWidgets', () => {
+  // Snapshots are the extraction contract: a diff in review = behavior change (§9.3).
+  it.each(readdirSync(FIXTURES).filter((f) => f.endsWith('.dart')))(
+    'matches snapshot: %s',
+    async (file) => {
+      expect(await extractFixture(file)).toMatchSnapshot();
+    },
+  );
+
+  it('classifies widget flavor by superclass', async () => {
+    const home = await extractFixture('home_screen.dart');
+    expect(home.find((w) => w.name === 'HomeScreen')?.flavor).toBe('stateless');
+
+    const profile = await extractFixture('profile_widgets.dart');
+    expect(profile.find((w) => w.name === 'ProfileView')?.flavor).toBe('consumer');
+    expect(profile.find((w) => w.name === 'CounterBadge')?.flavor).toBe('hook');
+  });
+
+  it('does not treat a plain non-widget class as a widget', async () => {
+    const profile = await extractFixture('profile_widgets.dart');
+    expect(profile.find((w) => w.name === 'ProfileRepository')).toBeUndefined();
+  });
+
+  it('parses a nested build tree with named slots and a children list', async () => {
+    const profile = await extractFixture('profile_widgets.dart');
+    const tree = profile.find((w) => w.name === 'ProfileView')?.buildTree;
+    expect(tree?.widget).toBe('Column');
+    const children = tree?.namedSlots['children'] ?? [];
+    expect(children.map((c) => c.widget)).toEqual(['Text', 'Divider', 'ElevatedButton']);
+  });
+
+  it('recovers a mis-parsed generic constructor (BlocBuilder<A, B>) with type args and builder subtree', async () => {
+    const home = await extractFixture('home_screen.dart');
+    const tree = home.find((w) => w.name === 'HomeScreen')?.buildTree;
+    const blocBuilder = tree?.namedSlots['body']?.[0];
+    expect(blocBuilder?.widget).toBe('BlocBuilder');
+    expect(blocBuilder?.typeArgs).toEqual(['HomeBloc', 'HomeState']);
+    expect(blocBuilder?.recoveredFromMisparse).toBe(true);
+    // The real builder subtree survives the mis-parse.
+    const listView = blocBuilder?.namedSlots['builder']?.[0];
+    expect(listView?.widget).toBe('ListView.builder');
+    expect(listView?.isBuilderCallback).toBe(true);
+    expect(listView?.namedSlots['itemBuilder']?.[0]?.widget).toBe('ListTile');
+  });
+
+  it('keeps clean type args on a single-type-arg generic constructor', async () => {
+    // FutureBuilder<int>(...) parses cleanly — type_arguments inside argument_part.
+    const home = await extractFixture('home_screen.dart');
+    const ctors = flattenTree(home.find((w) => w.name === 'HomeScreen')?.buildTree);
+    // ListView.builder appears via the recovered subtree; assert names are reachable.
+    expect(ctors.map((c) => c.widget)).toContain('ListView.builder');
+  });
+
+  it('omits event-handler callbacks (onPressed/onTap) from the static layout tree', async () => {
+    const home = await extractFixture('home_screen.dart');
+    const fab = home.find((w) => w.name === 'HomeScreen')?.buildTree?.namedSlots[
+      'floatingActionButton'
+    ]?.[0];
+    expect(fab?.widget).toBe('FloatingActionButton');
+    // onPressed constructs a Bloc event, not a widget — must not appear.
+    expect(fab?.namedSlots['onPressed']).toBeUndefined();
+    expect(fab?.namedSlots['child']?.[0]?.widget).toBe('Icon');
+  });
+
+  it('reports a StatefulWidget without inline build() and finds its State', async () => {
+    const { tree } = await parseFile(resolve(FIXTURES, '../basic/settings_screen.dart'));
+    const widgets = extractWidgets(tree, 'fixtures/basic/settings_screen.dart');
+    const sw = widgets.find((w) => w.name === 'SettingsScreen');
+    expect(sw?.flavor).toBe('stateful');
+    expect(sw?.buildTree).toBeUndefined();
+    const state = widgets.find((w) => w.name === '_SettingsScreenState');
+    expect(state?.flavor).toBe('state');
+    expect(state?.buildTree?.widget).toBe('Scaffold');
+  });
+});

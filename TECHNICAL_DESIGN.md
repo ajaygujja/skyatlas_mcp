@@ -4,8 +4,8 @@
 > If you are an AI assistant building this project: read this entire document before writing any code.
 > Follow the **Working Rules for AI Assistants** section strictly. Do not assume — verify.
 
-**Status:** Design approved, pre-implementation
-**Last verified:** 2026-06-12 (all ecosystem facts below were checked against live docs on this date)
+**Status:** In implementation — Phases 0, 1, 2 complete; Phase 3a (widgets) complete. See §8 for sub-phase status.
+**Last verified:** 2026-06-13 (ecosystem facts §2 checked against live docs; grammar behaviour re-verified empirically against the vendored `tree-sitter-dart` build)
 
 ---
 
@@ -80,6 +80,7 @@ Recommended developer setup is to run both.
 | Dart macros | **Cancelled** (Jan 2025) — will never appear in code; "augmentations" may ship later as separate feature | dart.dev blog |
 | tree-sitter grammar | `UserNobody14/tree-sitter-dart` — actively maintained, used by nvim-treesitter; supports records, patterns, class modifiers, extension types, dot shorthands; ships a WASM build in-repo | GitHub |
 | Known grammar weakness | Record-literal vs record-type vs record-pattern ambiguity in some `(x, x)` contexts → occasional mis-parse; treat as edge case, cover with fixtures | GitHub issues |
+| Grammar weakness **confirmed empirically (Phase 3a, 2026-06-13)** | A generic **constructor invocation at value position with ≥2 comma-separated type args** — `BlocBuilder<UserBloc, UserState>(...)` — mis-parses: the grammar reads `<`/`>` as comparison operators, yielding a `relational_expression` and spilling the real argument list into a sibling `record_literal`. A **single** type arg (`FutureBuilder<int>(...)`) parses cleanly (`type_arguments` inside `argument_part`), as do method-call sites (`context.read<X>()`, `on<Event>(...)`). The widget extractor recovers name + type args + builder subtree from the mis-parse and flags the node `recoveredFromMisparse`; fixture `fixtures/widgets/home_screen.dart` pins the behaviour | dump-tree, this repo |
 | MCP TypeScript SDK | `@modelcontextprotocol/sdk` — `McpServer.registerTool(name, {title, description, inputSchema, outputSchema}, handler)`; accepts Zod v4 / Standard Schema; supports runtime tool update notifications | modelcontextprotocol/typescript-sdk |
 
 **Implication of macros cancellation:** codegen stays annotation-driven (`freezed`,
@@ -360,7 +361,7 @@ recalled from training data. Mandatory workflow for every extractor:
 | Methods, getters, constructors, fields nested in class | ✅ body children | — |
 | Annotations incl. args | ✅ sibling nodes of declaration | match annotation *names* to known codegen (freezed/RoutePage/riverpod) by string |
 | Widget tree in build() | ✅ nested constructor/method invocations | decide which named args are "slots" (`child`, `children`, `builder`, `itemBuilder`…); enter builder closures and treat returned constructor as subtree |
-| `Bloc<E,S>` / `on<Event>(handler)` | ✅ type args are nodes | classify: extends-Bloc vs extends-Cubit; resolve handler method name within class scope |
+| `Bloc<E,S>` (in `extends`) / `on<Event>(handler)` | ✅ type args are nodes (declaration & method-call sites parse cleanly) | classify: extends-Bloc vs extends-Cubit; resolve handler method name within class scope. NB: a `BlocBuilder<E,S>(...)` *constructor* call mis-parses — see §2 grammar-weakness row; recover, don't trust the raw tree there |
 | go_router nesting | ✅ nested `GoRoute(...)` calls = nested nodes | compute fullPath by walking ancestors; handle `ShellRoute`/`StatefulShellRoute` (no own path) |
 | Riverpod | ✅ global var initializers, `@riverpod` annotations | classify provider type by constructor name string |
 | Imports/exports/parts | ✅ directive nodes | resolve `package:` URIs to workspace paths using pubspec name map (monorepo) |
@@ -400,13 +401,36 @@ tests red.
 - Benchmark script: index the enterprise monorepo, record cold/warm timings.
 - **Exit criteria:** cold index < 10 s on the 1000+ file repo; tools answer correctly in a live Claude session. *Tool is already daily-usable here.*
 
-### Phase 3 — Flutter domain extractors (target: 2 weeks; one extractor at a time, each with fixtures-first)
-1. **Widgets:** detect Stateless/Stateful/State/ConsumerWidget/HookWidget subclasses; extract build() tree (slot args, builder closures, type args on BlocBuilder etc.). Tool: `get_widget_tree`.
-2. **Bloc/Cubit:** type args, `on<E>` handlers, `emit` sites; `BlocProvider`/`context.read/watch`/`BlocBuilder` edges. 
-3. **Riverpod:** global providers + `@riverpod` generated; `ref.watch/read/listen` edges.
-4. **Routes:** go_router (GoRoute/ShellRoute/StatefulShellRoute nesting, fullPath computation, redirect guards) + auto_route (`@RoutePage`, `AutoRoute` lists, `*.gr.dart` fallback). Tool: `get_route_graph`.
-5. **Wiring:** assemble Edges; tool `find_state_wiring`.
-- **Exit criterion per extractor:** fixture suite drawn from the *real repo's* patterns passes; spot-check answers against ground truth you know as the team's Flutter expert.
+### Phase 3 — Flutter domain extractors (target: 2 weeks; one extractor at a time, each fixtures-first)
+
+Phase 3 is split into five independently shippable sub-phases. Each ends green
+(lint + typecheck + tests) and, where it adds a tool, answers correctly in a
+live Claude session. Build order is 3a → 3e; 3b/3c emit partial `Edge`s that 3e
+assembles. **Exit criterion per sub-phase:** fixture suite drawn from the real
+repo's patterns passes; spot-check answers against ground truth known to the
+team's Flutter expert.
+
+#### 3a — Widgets ✅ **complete (2026-06-13)**
+- Detect Stateless/Stateful/State/Consumer/Hook subclasses (flavor by superclass; anything else ending in `Widget` → `unknownWidgetSubclass`).
+- Parse the static build() tree: named slots, `children` lists, `const` constructions, named constructors (`ListView.builder`), type args, builder-closure subtrees (marked `isBuilderCallback`).
+- Event-handler slots (`^on[A-Z]` — `onPressed`/`onTap`/…) are excluded: they fire at runtime and often construct non-widgets (Bloc events).
+- Recovers the §2 generic-constructor mis-parse (`BlocBuilder<A,B>(...)`), flagged `recoveredFromMisparse`.
+- Model: `WidgetInfo`/`WidgetNode` in `src/model/flutter.ts`. Index: `ProjectIndex.widgets` + `FileEntry.widgets` (cache bumped to v2). Tool: `get_widget_tree`. Fixtures: `fixtures/widgets/`.
+- Known limits (honest, Working Rule 8): tree is syntactic — dynamically built children (loops/conditionals/spreads/helper methods) are not unrolled; PascalCase static calls sharing constructor syntax (`Theme.of(context)`) are filtered only when followed by a property access.
+
+#### 3b — Bloc/Cubit
+- Type args, `on<E>` handlers, `emit` sites; classify extends-Bloc vs extends-Cubit.
+- Emit partial `Edge`s: `BlocProvider(create:)`, `context.read/watch<X>()`, `BlocBuilder<X,_>`. Model: `BlocInfo`. No new tool (edges consumed by 3e).
+
+#### 3c — Riverpod
+- Global providers + `@riverpod` generated; classify provider type by constructor name.
+- Emit partial `Edge`s: `ref.watch/read/listen`. Model: `ProviderInfo`. No new tool (edges consumed by 3e).
+
+#### 3d — Routes
+- go_router (GoRoute/ShellRoute/StatefulShellRoute nesting, `fullPath` computation, redirect guards) + auto_route (`@RoutePage`, `AutoRoute` lists, `*.gr.dart` fallback). Model: `RouteInfo`. Tool: `get_route_graph`.
+
+#### 3e — Wiring
+- Assemble the `Edge` graph from 3b–3d; resolve screen ↔ bloc/provider ↔ repository connections by name-match (label `confidence: 'syntactic'`). Tool: `find_state_wiring`.
 
 ### Phase 4 — Freshness (target: 2–3 evenings)
 - chokidar watcher: debounce 200 ms, re-parse changed file, replace its symbols, invalidate affected domain graphs (recompute lazily on next tool call).

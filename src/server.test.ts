@@ -29,10 +29,10 @@ describe('flutter-intel MCP server (stdio E2E)', () => {
     await rm(root, { recursive: true, force: true });
   });
 
-  it('lists the three Phase 2 tools (ping retired)', async () => {
+  it('lists the Phase 2 + 3a tools (ping retired)', async () => {
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
-    expect(names).toEqual(['find_symbol', 'get_project_map', 'get_symbol']);
+    expect(names).toEqual(['find_symbol', 'get_project_map', 'get_symbol', 'get_widget_tree']);
   });
 
   it('get_project_map reports packages, stack, and health', async () => {
@@ -65,6 +65,18 @@ describe('flutter-intel MCP server (stdio E2E)', () => {
     expect(text).toContain('Members (2):');
     expect(text).toContain('constructor UserBloc()');
     expect(text).toContain('method Future<void> _onLoad');
+  });
+
+  it('get_widget_tree renders the static build tree with named slots', async () => {
+    const result = await client.callTool({
+      name: 'get_widget_tree',
+      arguments: { widget: 'MiniApp' },
+    });
+    const text = (result.content as { type: string; text: string }[])[0]?.text ?? '';
+    expect(text).toContain('# Widget tree: MiniApp (stateless) — lib/main.dart:7');
+    expect(text).toContain('MaterialApp — :11');
+    expect(text).toContain('home: HomeScreen — :11');
+    expect(text).toContain('Tree is syntactic');
   });
 
   it('explains empty results instead of returning nothing', async () => {

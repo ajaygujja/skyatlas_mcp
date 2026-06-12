@@ -12,7 +12,8 @@ import type { FileEntry } from './project-index.js';
 import { logger } from '../shared/logger.js';
 
 // Bump whenever FileEntry/Symbol serialization changes shape.
-const CACHE_VERSION = 1;
+// v2: FileEntry.widgets added (Phase 3a).
+const CACHE_VERSION = 2;
 
 interface CacheFile {
   version: number;

@@ -6,6 +6,7 @@
  * edges) alongside these fields.
  */
 import type { Symbol, SymbolKind } from '../model/symbol.js';
+import type { WidgetInfo } from '../model/flutter.js';
 import type { ImportEntry } from '../extractors/import-extractor.js';
 import type { PackageEntry } from './workspace.js';
 
@@ -21,6 +22,8 @@ export interface FileEntry {
   /** Top-level symbols; nested declarations hang off children. */
   symbols: Symbol[];
   imports: ImportEntry[];
+  /** Widget classes declared in this file (Phase 3a). */
+  widgets: WidgetInfo[];
   parseErrors: string[];
 }
 
@@ -29,6 +32,8 @@ export class ProjectIndex {
   readonly symbolsById = new Map<string, Symbol>();
   readonly byName = new Map<string, string[]>();
   readonly byKind = new Map<SymbolKind, string[]>();
+  /** Widget classes by symbolId (Phase 3a). */
+  readonly widgets = new Map<string, WidgetInfo>();
   packages: PackageEntry[] = [];
 
   /** Insert or replace a file's entry, keeping all lookup maps consistent. */
@@ -40,6 +45,9 @@ export class ProjectIndex {
       push(this.byName, sym.name, sym.id);
       push(this.byKind, sym.kind, sym.id);
     }
+    for (const widget of entry.widgets) {
+      this.widgets.set(widget.symbolId, widget);
+    }
   }
 
   removeFile(path: string): void {
@@ -50,6 +58,9 @@ export class ProjectIndex {
       this.symbolsById.delete(sym.id);
       pull(this.byName, sym.name, sym.id);
       pull(this.byKind, sym.kind, sym.id);
+    }
+    for (const widget of old.widgets) {
+      this.widgets.delete(widget.symbolId);
     }
   }
 
