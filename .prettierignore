@@ -1,0 +1,4 @@
+TECHNICAL_DESIGN.md
+vendor/
+pnpm-lock.yaml
+fixtures/

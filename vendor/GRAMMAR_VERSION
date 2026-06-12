@@ -1,0 +1,15 @@
+tree-sitter-dart.wasm
+source: https://github.com/UserNobody14/tree-sitter-dart
+commit: a9bdfa3db2fbc9b9f12c93450d04a671f33a5102 (2026-05-20)
+built: 2026-06-13 with tree-sitter-cli 0.26.9 (matches web-tree-sitter 0.26.9)
+
+NOTE: the wasm checked into the grammar repo is stale (built 2024-08 for
+tree-sitter 0.22.6) and fails to load in web-tree-sitter 0.26.x
+("unknown section code"). Always rebuild from source:
+
+  git clone https://github.com/UserNobody14/tree-sitter-dart && cd tree-sitter-dart
+  git checkout <commit>
+  npx -y tree-sitter-cli@<web-tree-sitter version> build --wasm -o tree-sitter-dart.wasm .
+
+The CLI downloads wasi-sdk automatically; no emscripten/docker needed.
+Keep tree-sitter-cli and web-tree-sitter versions in lockstep.

@@ -1,0 +1,1051 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`extractSymbols > matches snapshot: app_router.dart 1`] = `
+{
+  "parseErrors": [],
+  "symbols": [
+    {
+      "annotations": [],
+      "children": [],
+      "file": "fixtures/basic/app_router.dart",
+      "id": "fixtures/basic/app_router.dart#kHomePath",
+      "kind": "field",
+      "modifiers": [],
+      "name": "kHomePath",
+      "nameRange": {
+        "col": 14,
+        "line": 5,
+      },
+      "qualifiedName": "kHomePath",
+      "range": {
+        "endLine": 5,
+        "startLine": 5,
+      },
+    },
+    {
+      "annotations": [],
+      "children": [],
+      "file": "fixtures/basic/app_router.dart",
+      "id": "fixtures/basic/app_router.dart#navigationCount",
+      "kind": "field",
+      "modifiers": [],
+      "name": "navigationCount",
+      "nameRange": {
+        "col": 5,
+        "line": 6,
+      },
+      "qualifiedName": "navigationCount",
+      "range": {
+        "endLine": 6,
+        "startLine": 6,
+      },
+    },
+    {
+      "annotations": [],
+      "children": [],
+      "file": "fixtures/basic/app_router.dart",
+      "id": "fixtures/basic/app_router.dart#appRouter",
+      "kind": "field",
+      "modifiers": [],
+      "name": "appRouter",
+      "nameRange": {
+        "col": 16,
+        "line": 8,
+      },
+      "qualifiedName": "appRouter",
+      "range": {
+        "endLine": 21,
+        "startLine": 8,
+      },
+    },
+    {
+      "annotations": [],
+      "children": [],
+      "file": "fixtures/basic/app_router.dart",
+      "id": "fixtures/basic/app_router.dart#describeLocation",
+      "kind": "function",
+      "modifiers": [],
+      "name": "describeLocation",
+      "nameRange": {
+        "col": 8,
+        "line": 23,
+      },
+      "qualifiedName": "describeLocation",
+      "range": {
+        "endLine": 26,
+        "startLine": 23,
+      },
+    },
+  ],
+}
+`;
+
+exports[`extractSymbols > matches snapshot: broken.dart 1`] = `
+{
+  "parseErrors": [
+    "syntax error at 7:11",
+  ],
+  "symbols": [
+    {
+      "annotations": [],
+      "children": [
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/broken.dart",
+          "id": "fixtures/basic/broken.dart#Working.fine",
+          "kind": "method",
+          "modifiers": [],
+          "name": "fine",
+          "nameRange": {
+            "col": 8,
+            "line": 2,
+          },
+          "parentId": "fixtures/basic/broken.dart#Working",
+          "qualifiedName": "Working.fine",
+          "range": {
+            "endLine": 2,
+            "startLine": 2,
+          },
+        },
+      ],
+      "file": "fixtures/basic/broken.dart",
+      "id": "fixtures/basic/broken.dart#Working",
+      "kind": "class",
+      "modifiers": [],
+      "name": "Working",
+      "nameRange": {
+        "col": 7,
+        "line": 1,
+      },
+      "qualifiedName": "Working",
+      "range": {
+        "endLine": 3,
+        "startLine": 1,
+      },
+    },
+    {
+      "annotations": [],
+      "children": [
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/broken.dart",
+          "id": "fixtures/basic/broken.dart#Broken.bad",
+          "kind": "field",
+          "modifiers": [],
+          "name": "bad",
+          "nameRange": {
+            "col": 7,
+            "line": 7,
+          },
+          "parentId": "fixtures/basic/broken.dart#Broken",
+          "qualifiedName": "Broken.bad",
+          "range": {
+            "endLine": 7,
+            "startLine": 7,
+          },
+        },
+      ],
+      "file": "fixtures/basic/broken.dart",
+      "id": "fixtures/basic/broken.dart#Broken",
+      "kind": "class",
+      "modifiers": [],
+      "name": "Broken",
+      "nameRange": {
+        "col": 7,
+        "line": 5,
+      },
+      "qualifiedName": "Broken",
+      "range": {
+        "endLine": 8,
+        "startLine": 5,
+      },
+    },
+    {
+      "annotations": [],
+      "children": [
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/broken.dart",
+          "id": "fixtures/basic/broken.dart#AfterError.alive",
+          "kind": "field",
+          "modifiers": [],
+          "name": "alive",
+          "nameRange": {
+            "col": 7,
+            "line": 11,
+          },
+          "parentId": "fixtures/basic/broken.dart#AfterError",
+          "qualifiedName": "AfterError.alive",
+          "range": {
+            "endLine": 11,
+            "startLine": 11,
+          },
+        },
+      ],
+      "file": "fixtures/basic/broken.dart",
+      "id": "fixtures/basic/broken.dart#AfterError",
+      "kind": "class",
+      "modifiers": [],
+      "name": "AfterError",
+      "nameRange": {
+        "col": 7,
+        "line": 10,
+      },
+      "qualifiedName": "AfterError",
+      "range": {
+        "endLine": 12,
+        "startLine": 10,
+      },
+    },
+  ],
+}
+`;
+
+exports[`extractSymbols > matches snapshot: settings_screen.dart 1`] = `
+{
+  "parseErrors": [],
+  "symbols": [
+    {
+      "annotations": [],
+      "children": [
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/settings_screen.dart",
+          "id": "fixtures/basic/settings_screen.dart#SettingsScreen.SettingsScreen",
+          "kind": "constructor",
+          "modifiers": [],
+          "name": "SettingsScreen",
+          "nameRange": {
+            "col": 9,
+            "line": 4,
+          },
+          "parentId": "fixtures/basic/settings_screen.dart#SettingsScreen",
+          "qualifiedName": "SettingsScreen.SettingsScreen",
+          "range": {
+            "endLine": 4,
+            "startLine": 4,
+          },
+        },
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/settings_screen.dart",
+          "id": "fixtures/basic/settings_screen.dart#SettingsScreen.title",
+          "kind": "field",
+          "modifiers": [],
+          "name": "title",
+          "nameRange": {
+            "col": 16,
+            "line": 6,
+          },
+          "parentId": "fixtures/basic/settings_screen.dart#SettingsScreen",
+          "qualifiedName": "SettingsScreen.title",
+          "range": {
+            "endLine": 6,
+            "startLine": 6,
+          },
+        },
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/settings_screen.dart",
+          "id": "fixtures/basic/settings_screen.dart#SettingsScreen.createState",
+          "kind": "method",
+          "modifiers": [],
+          "name": "createState",
+          "nameRange": {
+            "col": 25,
+            "line": 9,
+          },
+          "parentId": "fixtures/basic/settings_screen.dart#SettingsScreen",
+          "qualifiedName": "SettingsScreen.createState",
+          "range": {
+            "endLine": 9,
+            "startLine": 9,
+          },
+        },
+      ],
+      "file": "fixtures/basic/settings_screen.dart",
+      "id": "fixtures/basic/settings_screen.dart#SettingsScreen",
+      "kind": "class",
+      "modifiers": [],
+      "name": "SettingsScreen",
+      "nameRange": {
+        "col": 7,
+        "line": 3,
+      },
+      "qualifiedName": "SettingsScreen",
+      "range": {
+        "endLine": 10,
+        "startLine": 3,
+      },
+    },
+    {
+      "annotations": [],
+      "children": [
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/settings_screen.dart",
+          "id": "fixtures/basic/settings_screen.dart#_SettingsScreenState._notificationsEnabled",
+          "kind": "field",
+          "modifiers": [],
+          "name": "_notificationsEnabled",
+          "nameRange": {
+            "col": 8,
+            "line": 13,
+          },
+          "parentId": "fixtures/basic/settings_screen.dart#_SettingsScreenState",
+          "qualifiedName": "_SettingsScreenState._notificationsEnabled",
+          "range": {
+            "endLine": 13,
+            "startLine": 13,
+          },
+        },
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/settings_screen.dart",
+          "id": "fixtures/basic/settings_screen.dart#_SettingsScreenState._toggleNotifications",
+          "kind": "method",
+          "modifiers": [],
+          "name": "_toggleNotifications",
+          "nameRange": {
+            "col": 8,
+            "line": 15,
+          },
+          "parentId": "fixtures/basic/settings_screen.dart#_SettingsScreenState",
+          "qualifiedName": "_SettingsScreenState._toggleNotifications",
+          "range": {
+            "endLine": 19,
+            "startLine": 15,
+          },
+        },
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/settings_screen.dart",
+          "id": "fixtures/basic/settings_screen.dart#_SettingsScreenState.build",
+          "kind": "method",
+          "modifiers": [],
+          "name": "build",
+          "nameRange": {
+            "col": 10,
+            "line": 22,
+          },
+          "parentId": "fixtures/basic/settings_screen.dart#_SettingsScreenState",
+          "qualifiedName": "_SettingsScreenState.build",
+          "range": {
+            "endLine": 35,
+            "startLine": 22,
+          },
+        },
+      ],
+      "file": "fixtures/basic/settings_screen.dart",
+      "id": "fixtures/basic/settings_screen.dart#_SettingsScreenState",
+      "kind": "class",
+      "modifiers": [],
+      "name": "_SettingsScreenState",
+      "nameRange": {
+        "col": 7,
+        "line": 12,
+      },
+      "qualifiedName": "_SettingsScreenState",
+      "range": {
+        "endLine": 36,
+        "startLine": 12,
+      },
+    },
+  ],
+}
+`;
+
+exports[`extractSymbols > matches snapshot: string_extensions.dart 1`] = `
+{
+  "parseErrors": [],
+  "symbols": [
+    {
+      "annotations": [],
+      "children": [
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/string_extensions.dart",
+          "id": "fixtures/basic/string_extensions.dart#Validatable.validate",
+          "kind": "method",
+          "modifiers": [],
+          "name": "validate",
+          "nameRange": {
+            "col": 16,
+            "line": 2,
+          },
+          "parentId": "fixtures/basic/string_extensions.dart#Validatable",
+          "qualifiedName": "Validatable.validate",
+          "range": {
+            "endLine": 2,
+            "startLine": 2,
+          },
+        },
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/string_extensions.dart",
+          "id": "fixtures/basic/string_extensions.dart#Validatable.isValid",
+          "kind": "getter",
+          "modifiers": [],
+          "name": "isValid",
+          "nameRange": {
+            "col": 12,
+            "line": 4,
+          },
+          "parentId": "fixtures/basic/string_extensions.dart#Validatable",
+          "qualifiedName": "Validatable.isValid",
+          "range": {
+            "endLine": 4,
+            "startLine": 4,
+          },
+        },
+      ],
+      "file": "fixtures/basic/string_extensions.dart",
+      "id": "fixtures/basic/string_extensions.dart#Validatable",
+      "kind": "mixin",
+      "modifiers": [],
+      "name": "Validatable",
+      "nameRange": {
+        "col": 7,
+        "line": 1,
+      },
+      "qualifiedName": "Validatable",
+      "range": {
+        "endLine": 5,
+        "startLine": 1,
+      },
+    },
+    {
+      "annotations": [],
+      "children": [
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/string_extensions.dart",
+          "id": "fixtures/basic/string_extensions.dart#StringX.isBlank",
+          "kind": "getter",
+          "modifiers": [],
+          "name": "isBlank",
+          "nameRange": {
+            "col": 12,
+            "line": 8,
+          },
+          "parentId": "fixtures/basic/string_extensions.dart#StringX",
+          "qualifiedName": "StringX.isBlank",
+          "range": {
+            "endLine": 8,
+            "startLine": 8,
+          },
+        },
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/string_extensions.dart",
+          "id": "fixtures/basic/string_extensions.dart#StringX.truncate",
+          "kind": "method",
+          "modifiers": [],
+          "name": "truncate",
+          "nameRange": {
+            "col": 10,
+            "line": 10,
+          },
+          "parentId": "fixtures/basic/string_extensions.dart#StringX",
+          "qualifiedName": "StringX.truncate",
+          "range": {
+            "endLine": 13,
+            "startLine": 10,
+          },
+        },
+      ],
+      "file": "fixtures/basic/string_extensions.dart",
+      "id": "fixtures/basic/string_extensions.dart#StringX",
+      "kind": "extension",
+      "modifiers": [],
+      "name": "StringX",
+      "nameRange": {
+        "col": 11,
+        "line": 7,
+      },
+      "qualifiedName": "StringX",
+      "range": {
+        "endLine": 14,
+        "startLine": 7,
+      },
+    },
+    {
+      "annotations": [],
+      "children": [
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/string_extensions.dart",
+          "id": "fixtures/basic/string_extensions.dart#Formatter.format",
+          "kind": "method",
+          "modifiers": [],
+          "name": "format",
+          "nameRange": {
+            "col": 10,
+            "line": 17,
+          },
+          "parentId": "fixtures/basic/string_extensions.dart#Formatter",
+          "qualifiedName": "Formatter.format",
+          "range": {
+            "endLine": 17,
+            "startLine": 17,
+          },
+        },
+      ],
+      "file": "fixtures/basic/string_extensions.dart",
+      "id": "fixtures/basic/string_extensions.dart#Formatter",
+      "kind": "class",
+      "modifiers": [],
+      "name": "Formatter",
+      "nameRange": {
+        "col": 16,
+        "line": 16,
+      },
+      "qualifiedName": "Formatter",
+      "range": {
+        "endLine": 18,
+        "startLine": 16,
+      },
+    },
+  ],
+}
+`;
+
+exports[`extractSymbols > matches snapshot: user_bloc.dart 1`] = `
+{
+  "parseErrors": [],
+  "symbols": [
+    {
+      "annotations": [],
+      "children": [],
+      "file": "fixtures/basic/user_bloc.dart",
+      "id": "fixtures/basic/user_bloc.dart#UserEvent",
+      "kind": "class",
+      "modifiers": [],
+      "name": "UserEvent",
+      "nameRange": {
+        "col": 14,
+        "line": 5,
+      },
+      "qualifiedName": "UserEvent",
+      "range": {
+        "endLine": 5,
+        "startLine": 5,
+      },
+    },
+    {
+      "annotations": [],
+      "children": [
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/user_bloc.dart",
+          "id": "fixtures/basic/user_bloc.dart#LoadUser.userId",
+          "kind": "field",
+          "modifiers": [],
+          "name": "userId",
+          "nameRange": {
+            "col": 16,
+            "line": 8,
+          },
+          "parentId": "fixtures/basic/user_bloc.dart#LoadUser",
+          "qualifiedName": "LoadUser.userId",
+          "range": {
+            "endLine": 8,
+            "startLine": 8,
+          },
+        },
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/user_bloc.dart",
+          "id": "fixtures/basic/user_bloc.dart#LoadUser.LoadUser",
+          "kind": "constructor",
+          "modifiers": [],
+          "name": "LoadUser",
+          "nameRange": {
+            "col": 3,
+            "line": 9,
+          },
+          "parentId": "fixtures/basic/user_bloc.dart#LoadUser",
+          "qualifiedName": "LoadUser.LoadUser",
+          "range": {
+            "endLine": 9,
+            "startLine": 9,
+          },
+        },
+      ],
+      "file": "fixtures/basic/user_bloc.dart",
+      "id": "fixtures/basic/user_bloc.dart#LoadUser",
+      "kind": "class",
+      "modifiers": [],
+      "name": "LoadUser",
+      "nameRange": {
+        "col": 13,
+        "line": 7,
+      },
+      "qualifiedName": "LoadUser",
+      "range": {
+        "endLine": 10,
+        "startLine": 7,
+      },
+    },
+    {
+      "annotations": [],
+      "children": [],
+      "file": "fixtures/basic/user_bloc.dart",
+      "id": "fixtures/basic/user_bloc.dart#RefreshUser",
+      "kind": "class",
+      "modifiers": [],
+      "name": "RefreshUser",
+      "nameRange": {
+        "col": 13,
+        "line": 12,
+      },
+      "qualifiedName": "RefreshUser",
+      "range": {
+        "endLine": 12,
+        "startLine": 12,
+      },
+    },
+    {
+      "annotations": [],
+      "children": [
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/user_bloc.dart",
+          "id": "fixtures/basic/user_bloc.dart#UserBloc._repository",
+          "kind": "field",
+          "modifiers": [],
+          "name": "_repository",
+          "nameRange": {
+            "col": 24,
+            "line": 15,
+          },
+          "parentId": "fixtures/basic/user_bloc.dart#UserBloc",
+          "qualifiedName": "UserBloc._repository",
+          "range": {
+            "endLine": 15,
+            "startLine": 15,
+          },
+        },
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/user_bloc.dart",
+          "id": "fixtures/basic/user_bloc.dart#UserBloc.UserBloc",
+          "kind": "constructor",
+          "modifiers": [],
+          "name": "UserBloc",
+          "nameRange": {
+            "col": 3,
+            "line": 17,
+          },
+          "parentId": "fixtures/basic/user_bloc.dart#UserBloc",
+          "qualifiedName": "UserBloc.UserBloc",
+          "range": {
+            "endLine": 20,
+            "startLine": 17,
+          },
+        },
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/user_bloc.dart",
+          "id": "fixtures/basic/user_bloc.dart#UserBloc._onLoad",
+          "kind": "method",
+          "modifiers": [],
+          "name": "_onLoad",
+          "nameRange": {
+            "col": 16,
+            "line": 22,
+          },
+          "parentId": "fixtures/basic/user_bloc.dart#UserBloc",
+          "qualifiedName": "UserBloc._onLoad",
+          "range": {
+            "endLine": 26,
+            "startLine": 22,
+          },
+        },
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/user_bloc.dart",
+          "id": "fixtures/basic/user_bloc.dart#UserBloc._onRefresh",
+          "kind": "method",
+          "modifiers": [],
+          "name": "_onRefresh",
+          "nameRange": {
+            "col": 16,
+            "line": 28,
+          },
+          "parentId": "fixtures/basic/user_bloc.dart#UserBloc",
+          "qualifiedName": "UserBloc._onRefresh",
+          "range": {
+            "endLine": 31,
+            "startLine": 28,
+          },
+        },
+      ],
+      "file": "fixtures/basic/user_bloc.dart",
+      "id": "fixtures/basic/user_bloc.dart#UserBloc",
+      "kind": "class",
+      "modifiers": [],
+      "name": "UserBloc",
+      "nameRange": {
+        "col": 7,
+        "line": 14,
+      },
+      "qualifiedName": "UserBloc",
+      "range": {
+        "endLine": 32,
+        "startLine": 14,
+      },
+    },
+  ],
+}
+`;
+
+exports[`extractSymbols > matches snapshot: user_model.dart 1`] = `
+{
+  "parseErrors": [],
+  "symbols": [
+    {
+      "annotations": [],
+      "children": [
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/user_model.dart",
+          "id": "fixtures/basic/user_model.dart#UserRole.admin",
+          "kind": "field",
+          "modifiers": [],
+          "name": "admin",
+          "nameRange": {
+            "col": 17,
+            "line": 1,
+          },
+          "parentId": "fixtures/basic/user_model.dart#UserRole",
+          "qualifiedName": "UserRole.admin",
+          "range": {
+            "endLine": 1,
+            "startLine": 1,
+          },
+        },
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/user_model.dart",
+          "id": "fixtures/basic/user_model.dart#UserRole.member",
+          "kind": "field",
+          "modifiers": [],
+          "name": "member",
+          "nameRange": {
+            "col": 24,
+            "line": 1,
+          },
+          "parentId": "fixtures/basic/user_model.dart#UserRole",
+          "qualifiedName": "UserRole.member",
+          "range": {
+            "endLine": 1,
+            "startLine": 1,
+          },
+        },
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/user_model.dart",
+          "id": "fixtures/basic/user_model.dart#UserRole.guest",
+          "kind": "field",
+          "modifiers": [],
+          "name": "guest",
+          "nameRange": {
+            "col": 32,
+            "line": 1,
+          },
+          "parentId": "fixtures/basic/user_model.dart#UserRole",
+          "qualifiedName": "UserRole.guest",
+          "range": {
+            "endLine": 1,
+            "startLine": 1,
+          },
+        },
+      ],
+      "file": "fixtures/basic/user_model.dart",
+      "id": "fixtures/basic/user_model.dart#UserRole",
+      "kind": "enum",
+      "modifiers": [],
+      "name": "UserRole",
+      "nameRange": {
+        "col": 6,
+        "line": 1,
+      },
+      "qualifiedName": "UserRole",
+      "range": {
+        "endLine": 1,
+        "startLine": 1,
+      },
+    },
+    {
+      "annotations": [],
+      "children": [],
+      "file": "fixtures/basic/user_model.dart",
+      "id": "fixtures/basic/user_model.dart#Json",
+      "kind": "typedef",
+      "modifiers": [],
+      "name": "Json",
+      "nameRange": {
+        "col": 9,
+        "line": 3,
+      },
+      "qualifiedName": "Json",
+      "range": {
+        "endLine": 3,
+        "startLine": 3,
+      },
+    },
+    {
+      "annotations": [],
+      "children": [
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/user_model.dart",
+          "id": "fixtures/basic/user_model.dart#User.id",
+          "kind": "field",
+          "modifiers": [],
+          "name": "id",
+          "nameRange": {
+            "col": 16,
+            "line": 6,
+          },
+          "parentId": "fixtures/basic/user_model.dart#User",
+          "qualifiedName": "User.id",
+          "range": {
+            "endLine": 6,
+            "startLine": 6,
+          },
+        },
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/user_model.dart",
+          "id": "fixtures/basic/user_model.dart#User.name",
+          "kind": "field",
+          "modifiers": [],
+          "name": "name",
+          "nameRange": {
+            "col": 16,
+            "line": 7,
+          },
+          "parentId": "fixtures/basic/user_model.dart#User",
+          "qualifiedName": "User.name",
+          "range": {
+            "endLine": 7,
+            "startLine": 7,
+          },
+        },
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/user_model.dart",
+          "id": "fixtures/basic/user_model.dart#User.role",
+          "kind": "field",
+          "modifiers": [],
+          "name": "role",
+          "nameRange": {
+            "col": 18,
+            "line": 8,
+          },
+          "parentId": "fixtures/basic/user_model.dart#User",
+          "qualifiedName": "User.role",
+          "range": {
+            "endLine": 8,
+            "startLine": 8,
+          },
+        },
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/user_model.dart",
+          "id": "fixtures/basic/user_model.dart#User.maxNameLength",
+          "kind": "field",
+          "modifiers": [],
+          "name": "maxNameLength",
+          "nameRange": {
+            "col": 20,
+            "line": 9,
+          },
+          "parentId": "fixtures/basic/user_model.dart#User",
+          "qualifiedName": "User.maxNameLength",
+          "range": {
+            "endLine": 9,
+            "startLine": 9,
+          },
+        },
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/user_model.dart",
+          "id": "fixtures/basic/user_model.dart#User.User",
+          "kind": "constructor",
+          "modifiers": [],
+          "name": "User",
+          "nameRange": {
+            "col": 9,
+            "line": 11,
+          },
+          "parentId": "fixtures/basic/user_model.dart#User",
+          "qualifiedName": "User.User",
+          "range": {
+            "endLine": 11,
+            "startLine": 11,
+          },
+        },
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/user_model.dart",
+          "id": "fixtures/basic/user_model.dart#User.guest",
+          "kind": "constructor",
+          "modifiers": [],
+          "name": "guest",
+          "nameRange": {
+            "col": 8,
+            "line": 13,
+          },
+          "parentId": "fixtures/basic/user_model.dart#User",
+          "qualifiedName": "User.guest",
+          "range": {
+            "endLine": 16,
+            "startLine": 13,
+          },
+        },
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/user_model.dart",
+          "id": "fixtures/basic/user_model.dart#User.fromJson",
+          "kind": "constructor",
+          "modifiers": [],
+          "name": "fromJson",
+          "nameRange": {
+            "col": 16,
+            "line": 18,
+          },
+          "parentId": "fixtures/basic/user_model.dart#User",
+          "qualifiedName": "User.fromJson",
+          "range": {
+            "endLine": 23,
+            "startLine": 18,
+          },
+        },
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/user_model.dart",
+          "id": "fixtures/basic/user_model.dart#User.isAdmin",
+          "kind": "getter",
+          "modifiers": [],
+          "name": "isAdmin",
+          "nameRange": {
+            "col": 12,
+            "line": 25,
+          },
+          "parentId": "fixtures/basic/user_model.dart#User",
+          "qualifiedName": "User.isAdmin",
+          "range": {
+            "endLine": 25,
+            "startLine": 25,
+          },
+        },
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/user_model.dart",
+          "id": "fixtures/basic/user_model.dart#User.toJson",
+          "kind": "method",
+          "modifiers": [],
+          "name": "toJson",
+          "nameRange": {
+            "col": 8,
+            "line": 27,
+          },
+          "parentId": "fixtures/basic/user_model.dart#User",
+          "qualifiedName": "User.toJson",
+          "range": {
+            "endLine": 27,
+            "startLine": 27,
+          },
+        },
+      ],
+      "file": "fixtures/basic/user_model.dart",
+      "id": "fixtures/basic/user_model.dart#User",
+      "kind": "class",
+      "modifiers": [],
+      "name": "User",
+      "nameRange": {
+        "col": 7,
+        "line": 5,
+      },
+      "qualifiedName": "User",
+      "range": {
+        "endLine": 28,
+        "startLine": 5,
+      },
+    },
+    {
+      "annotations": [],
+      "children": [
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/user_model.dart",
+          "id": "fixtures/basic/user_model.dart#UserId.isValid",
+          "kind": "getter",
+          "modifiers": [],
+          "name": "isValid",
+          "nameRange": {
+            "col": 12,
+            "line": 31,
+          },
+          "parentId": "fixtures/basic/user_model.dart#UserId",
+          "qualifiedName": "UserId.isValid",
+          "range": {
+            "endLine": 31,
+            "startLine": 31,
+          },
+        },
+      ],
+      "file": "fixtures/basic/user_model.dart",
+      "id": "fixtures/basic/user_model.dart#UserId",
+      "kind": "extensionType",
+      "modifiers": [],
+      "name": "UserId",
+      "nameRange": {
+        "col": 16,
+        "line": 30,
+      },
+      "qualifiedName": "UserId",
+      "range": {
+        "endLine": 32,
+        "startLine": 30,
+      },
+    },
+  ],
+}
+`;
