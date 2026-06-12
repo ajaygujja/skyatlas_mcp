@@ -4,7 +4,7 @@
 > If you are an AI assistant building this project: read this entire document before writing any code.
 > Follow the **Working Rules for AI Assistants** section strictly. Do not assume — verify.
 
-**Status:** In implementation — Phases 0, 1, 2 complete; Phase 3a (widgets) complete. See §8 for sub-phase status.
+**Status:** In implementation — Phases 0, 1, 2 complete; Phase 3a (widgets) + 3b (bloc/cubit) complete. See §8 for sub-phase status.
 **Last verified:** 2026-06-13 (ecosystem facts §2 checked against live docs; grammar behaviour re-verified empirically against the vendored `tree-sitter-dart` build)
 
 ---
@@ -81,6 +81,7 @@ Recommended developer setup is to run both.
 | tree-sitter grammar | `UserNobody14/tree-sitter-dart` — actively maintained, used by nvim-treesitter; supports records, patterns, class modifiers, extension types, dot shorthands; ships a WASM build in-repo | GitHub |
 | Known grammar weakness | Record-literal vs record-type vs record-pattern ambiguity in some `(x, x)` contexts → occasional mis-parse; treat as edge case, cover with fixtures | GitHub issues |
 | Grammar weakness **confirmed empirically (Phase 3a, 2026-06-13)** | A generic **constructor invocation at value position with ≥2 comma-separated type args** — `BlocBuilder<UserBloc, UserState>(...)` — mis-parses: the grammar reads `<`/`>` as comparison operators, yielding a `relational_expression` and spilling the real argument list into a sibling `record_literal`. A **single** type arg (`FutureBuilder<int>(...)`) parses cleanly (`type_arguments` inside `argument_part`), as do method-call sites (`context.read<X>()`, `on<Event>(...)`). The widget extractor recovers name + type args + builder subtree from the mis-parse and flags the node `recoveredFromMisparse`; fixture `fixtures/widgets/home_screen.dart` pins the behaviour | dump-tree, this repo |
+| Mis-parse is **context-dependent (Phase 3b, 2026-06-13)** | The ≥2-type-arg constructor mis-parse fires only when the call sits in a **named-arg value that follows a sibling arg** (`BlocProvider(create:…, child: BlocBuilder<A,B>(…))`). When the same `BlocBuilder<A,B>(…)` owns the **whole** arg list it can occupy (e.g. `Scaffold(body: BlocBuilder<A,B>(…))`, the sole/first arg) it parses **cleanly** as `identifier + argument_part(type_arguments, arguments)`. The bloc extractor therefore handles both: clean `identifier` in the Bloc-widget family → first type arg; `relational_expression` head in the family → recover the first type arg after `<`. Fixtures `fixtures/blocs/home_screen.dart` (clean) and `fixtures/blocs/multi_bloc_view.dart` (mis-parse) pin both paths | dump-tree, this repo |
 | MCP TypeScript SDK | `@modelcontextprotocol/sdk` — `McpServer.registerTool(name, {title, description, inputSchema, outputSchema}, handler)`; accepts Zod v4 / Standard Schema; supports runtime tool update notifications | modelcontextprotocol/typescript-sdk |
 
 **Implication of macros cancellation:** codegen stays annotation-driven (`freezed`,
@@ -235,13 +236,16 @@ interface WidgetNode {
   isBuilderCallback?: boolean;   // tree came from a builder closure (itemBuilder, etc.)
 }
 
-/** State management wiring. */
+/** State management wiring. (3b adds name/file/line/emitSites — mirrors WidgetInfo.) */
 interface BlocInfo {
   symbolId: string;
-  flavor: 'bloc' | 'cubit';
-  eventType?: string;            // from Bloc<Event, State> type args
-  stateType?: string;
+  name: string;                  // class name as written
+  flavor: 'bloc' | 'cubit';      // classified by superclass suffix (*Bloc / *Cubit)
+  file: string; line: number;
+  eventType?: string;            // from Bloc<Event, State> type args (bloc only)
+  stateType?: string;            // Bloc<_, State> / Cubit<State>
   handlers: { eventType: string; methodName?: string; line: number }[];  // on<X>(...)
+  emitSites: number[];           // lines of emit(...) call sites
 }
 interface ProviderInfo {          // Riverpod
   symbolId?: string;             // for class-based / generated providers
@@ -418,9 +422,12 @@ team's Flutter expert.
 - Model: `WidgetInfo`/`WidgetNode` in `src/model/flutter.ts`. Index: `ProjectIndex.widgets` + `FileEntry.widgets` (cache bumped to v2). Tool: `get_widget_tree`. Fixtures: `fixtures/widgets/`.
 - Known limits (honest, Working Rule 8): tree is syntactic — dynamically built children (loops/conditionals/spreads/helper methods) are not unrolled; PascalCase static calls sharing constructor syntax (`Theme.of(context)`) are filtered only when followed by a property access.
 
-#### 3b — Bloc/Cubit
-- Type args, `on<E>` handlers, `emit` sites; classify extends-Bloc vs extends-Cubit.
-- Emit partial `Edge`s: `BlocProvider(create:)`, `context.read/watch<X>()`, `BlocBuilder<X,_>`. Model: `BlocInfo`. No new tool (edges consumed by 3e).
+#### 3b — Bloc/Cubit ✅ **complete (2026-06-13)**
+- Detect `*Bloc`/`*Cubit` subclasses (suffix rule, mirroring 3a's `endsWith('Widget')` — catches `HydratedBloc`/`HydratedCubit` without a hard-coded list). Flavor by suffix: bloc → event+state type args, cubit → state only.
+- `on<Event>(handler)` registrations (handler method name for tear-offs, absent for inline closures, + line) and `emit(...)` call-site lines. Clean method-call parse — `argument_part > (type_arguments, arguments)`.
+- Emits partial `Edge`s: `createsBloc` (`BlocProvider(create:)` → bloc constructed in the closure), `readsBloc` (`context.read/watch<X>()`, and the `BlocBuilder/BlocListener/BlocConsumer/BlocSelector<X, _>` family — both the clean and mis-parsed forms, see §2). `from` = enclosing class symbolId (file path at top level); `to` = bare name (resolved to symbolIds in 3e); `confidence: 'syntactic'`.
+- Model: `BlocInfo` + `Edge`/`EdgeKind`/`EdgeConfidence` in `src/model/flutter.ts`. Index: `ProjectIndex.blocs` + `.edges`, `FileEntry.blocs` + `.edges` (cache bumped to v3). No new tool (edges consumed by 3e). Fixtures: `fixtures/blocs/`.
+- Known limits (Working Rule 8): suffix classification can't distinguish a real Bloc base from an unrelated class whose name happens to end in `Bloc`/`Cubit`; `readsBloc` to a repository (`context.read<UserRepository>()`) is emitted too — syntax can't tell a bloc read from any other `context.read`, so 3e resolves/filters by name-match.
 
 #### 3c — Riverpod
 - Global providers + `@riverpod` generated; classify provider type by constructor name.

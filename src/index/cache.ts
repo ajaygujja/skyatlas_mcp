@@ -13,7 +13,8 @@ import { logger } from '../shared/logger.js';
 
 // Bump whenever FileEntry/Symbol serialization changes shape.
 // v2: FileEntry.widgets added (Phase 3a).
-const CACHE_VERSION = 2;
+// v3: FileEntry.blocs + FileEntry.edges added (Phase 3b).
+const CACHE_VERSION = 3;
 
 interface CacheFile {
   version: number;

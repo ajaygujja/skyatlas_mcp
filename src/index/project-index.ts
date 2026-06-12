@@ -6,7 +6,7 @@
  * edges) alongside these fields.
  */
 import type { Symbol, SymbolKind } from '../model/symbol.js';
-import type { WidgetInfo } from '../model/flutter.js';
+import type { BlocInfo, Edge, WidgetInfo } from '../model/flutter.js';
 import type { ImportEntry } from '../extractors/import-extractor.js';
 import type { PackageEntry } from './workspace.js';
 
@@ -24,6 +24,10 @@ export interface FileEntry {
   imports: ImportEntry[];
   /** Widget classes declared in this file (Phase 3a). */
   widgets: WidgetInfo[];
+  /** Bloc/Cubit classes declared in this file (Phase 3b). */
+  blocs: BlocInfo[];
+  /** Partial state-management edges sourced from this file (Phase 3b). */
+  edges: Edge[];
   parseErrors: string[];
 }
 
@@ -34,6 +38,10 @@ export class ProjectIndex {
   readonly byKind = new Map<SymbolKind, string[]>();
   /** Widget classes by symbolId (Phase 3a). */
   readonly widgets = new Map<string, WidgetInfo>();
+  /** Bloc/Cubit classes by symbolId (Phase 3b). */
+  readonly blocs = new Map<string, BlocInfo>();
+  /** Cross-cutting syntactic edges, aggregated across files (Phase 3b → 3e). */
+  readonly edges: Edge[] = [];
   packages: PackageEntry[] = [];
 
   /** Insert or replace a file's entry, keeping all lookup maps consistent. */
@@ -48,6 +56,10 @@ export class ProjectIndex {
     for (const widget of entry.widgets) {
       this.widgets.set(widget.symbolId, widget);
     }
+    for (const bloc of entry.blocs) {
+      this.blocs.set(bloc.symbolId, bloc);
+    }
+    this.edges.push(...entry.edges);
   }
 
   removeFile(path: string): void {
@@ -61,6 +73,14 @@ export class ProjectIndex {
     }
     for (const widget of old.widgets) {
       this.widgets.delete(widget.symbolId);
+    }
+    for (const bloc of old.blocs) {
+      this.blocs.delete(bloc.symbolId);
+    }
+    // Edges are owned by reference: drop the exact objects this file contributed.
+    for (const edge of old.edges) {
+      const i = this.edges.indexOf(edge);
+      if (i !== -1) this.edges.splice(i, 1);
     }
   }
 

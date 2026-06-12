@@ -1,0 +1,165 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`extractBlocs > matches snapshot: auth_bloc.dart 1`] = `
+{
+  "blocs": [
+    {
+      "emitSites": [
+        12,
+        16,
+      ],
+      "eventType": "AuthEvent",
+      "file": "fixtures/blocs/auth_bloc.dart",
+      "flavor": "bloc",
+      "handlers": [
+        {
+          "eventType": "LoggedIn",
+          "line": 7,
+          "methodName": "_onLoggedIn",
+        },
+        {
+          "eventType": "LoggedOut",
+          "line": 8,
+          "methodName": "_onLoggedOut",
+        },
+      ],
+      "line": 5,
+      "name": "AuthBloc",
+      "stateType": "AuthState",
+      "symbolId": "fixtures/blocs/auth_bloc.dart#AuthBloc",
+    },
+  ],
+  "edges": [],
+}
+`;
+
+exports[`extractBlocs > matches snapshot: counter_cubit.dart 1`] = `
+{
+  "blocs": [
+    {
+      "emitSites": [
+        8,
+        11,
+      ],
+      "file": "fixtures/blocs/counter_cubit.dart",
+      "flavor": "cubit",
+      "handlers": [],
+      "line": 5,
+      "name": "CounterCubit",
+      "stateType": "int",
+      "symbolId": "fixtures/blocs/counter_cubit.dart#CounterCubit",
+    },
+    {
+      "emitSites": [
+        20,
+      ],
+      "file": "fixtures/blocs/counter_cubit.dart",
+      "flavor": "cubit",
+      "handlers": [],
+      "line": 16,
+      "name": "SettingsCubit",
+      "stateType": "SettingsState",
+      "symbolId": "fixtures/blocs/counter_cubit.dart#SettingsCubit",
+    },
+  ],
+  "edges": [],
+}
+`;
+
+exports[`extractBlocs > matches snapshot: home_screen.dart 1`] = `
+{
+  "blocs": [],
+  "edges": [
+    {
+      "confidence": "syntactic",
+      "from": "fixtures/blocs/home_screen.dart#HomeScreen",
+      "kind": "createsBloc",
+      "line": 13,
+      "to": "UserBloc",
+    },
+    {
+      "confidence": "syntactic",
+      "from": "fixtures/blocs/home_screen.dart#HomeScreen",
+      "kind": "readsBloc",
+      "line": 14,
+      "to": "UserRepository",
+    },
+    {
+      "confidence": "syntactic",
+      "from": "fixtures/blocs/home_screen.dart#_HomeView",
+      "kind": "readsBloc",
+      "line": 25,
+      "to": "ThemeCubit",
+    },
+    {
+      "confidence": "syntactic",
+      "from": "fixtures/blocs/home_screen.dart#_HomeView",
+      "kind": "readsBloc",
+      "line": 27,
+      "to": "UserBloc",
+    },
+  ],
+}
+`;
+
+exports[`extractBlocs > matches snapshot: multi_bloc_view.dart 1`] = `
+{
+  "blocs": [],
+  "edges": [
+    {
+      "confidence": "syntactic",
+      "from": "fixtures/blocs/multi_bloc_view.dart#MultiBlocView",
+      "kind": "createsBloc",
+      "line": 15,
+      "to": "UserBloc",
+    },
+    {
+      "confidence": "syntactic",
+      "from": "fixtures/blocs/multi_bloc_view.dart#MultiBlocView",
+      "kind": "readsBloc",
+      "line": 16,
+      "to": "UserRepository",
+    },
+    {
+      "confidence": "syntactic",
+      "from": "fixtures/blocs/multi_bloc_view.dart#MultiBlocView",
+      "kind": "readsBloc",
+      "line": 17,
+      "to": "UserBloc",
+    },
+  ],
+}
+`;
+
+exports[`extractBlocs > matches snapshot: user_bloc.dart 1`] = `
+{
+  "blocs": [
+    {
+      "emitSites": [
+        34,
+        39,
+        41,
+      ],
+      "eventType": "UserEvent",
+      "file": "fixtures/blocs/user_bloc.dart",
+      "flavor": "bloc",
+      "handlers": [
+        {
+          "eventType": "LoadUser",
+          "line": 31,
+          "methodName": "_onLoad",
+        },
+        {
+          "eventType": "RefreshUser",
+          "line": 32,
+        },
+      ],
+      "line": 27,
+      "name": "UserBloc",
+      "stateType": "UserState",
+      "symbolId": "fixtures/blocs/user_bloc.dart#UserBloc",
+    },
+  ],
+  "edges": [],
+}
+`;
