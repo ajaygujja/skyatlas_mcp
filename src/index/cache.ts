@@ -15,7 +15,8 @@ import { logger } from '../shared/logger.js';
 // v2: FileEntry.widgets added (Phase 3a).
 // v3: FileEntry.blocs + FileEntry.edges added (Phase 3b).
 // v4: FileEntry.providers added; edges now include watchesProvider (Phase 3c).
-const CACHE_VERSION = 4;
+// v5: FileEntry.routes + dynamicRoutes added (Phase 3d).
+const CACHE_VERSION = 5;
 
 interface CacheFile {
   version: number;

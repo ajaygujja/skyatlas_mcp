@@ -115,6 +115,52 @@ export interface ProviderInfo {
   line: number;
 }
 
+export type RouterKind = 'go_router' | 'auto_route' | 'navigator1';
+
+/**
+ * A navigation route (Phase 3d, §5.2). Built from real CST nesting — no paren
+ * counting. `fullPath` is computed by walking ancestors (go_router join rules);
+ * `ShellRoute`/`StatefulShellRoute` contribute no path segment of their own and
+ * pass the parent path through to their children.
+ *
+ * Honesty rule (§5.1, Working Rule 8): `screenWidget` is the constructor name as
+ * written in the route's builder, never a resolved type. For auto_route it is the
+ * generated `*Route` page class referenced (`page: HomeRoute.page` → "HomeRoute");
+ * the *.gr.dart fallback (§7.4) resolves it to the real screen via the PageInfo
+ * builder. Absent when the builder is not a single syntactically visible widget.
+ */
+export interface RouteInfo {
+  router: RouterKind;
+  /** Path as written (go_router), or auto_route's explicit `path:`. Absent for shells / derived paths. */
+  path?: string;
+  /** Route name: go_router `name:`, or the auto_route page class (`HomeRoute`). */
+  name?: string;
+  /** Computed from nesting: parent fullPath joined with own path. Absent when a path is. */
+  fullPath?: string;
+  /** Screen widget the route builds, as written — see honesty note above. */
+  screenWidget?: string;
+  file: string;
+  /** 1-based line of the route construction. */
+  line: number;
+  /** Real nesting from the CST (go_router `routes:`/`branches:`, auto_route `children:`). */
+  children: RouteInfo[];
+  /** redirect/guard identifiers when present (`redirect: authGuard`, `guards: [AuthGuard]`). */
+  guards?: string[];
+}
+
+/**
+ * A route table the syntax layer cannot enumerate (§12, Working Rule 8):
+ * `routes:` given by reference (`GoRouter(routes: sharedRoutes)`), or built with
+ * a collection-`for`/spread. Reported as honest absence, never fabricated.
+ */
+export interface DynamicRouteNote {
+  router: RouterKind;
+  file: string;
+  /** 1-based line of the construct that hides the routes. */
+  line: number;
+  reason: string;
+}
+
 export type EdgeKind =
   | 'createsBloc'
   | 'readsBloc'

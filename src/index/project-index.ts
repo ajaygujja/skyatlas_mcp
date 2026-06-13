@@ -6,7 +6,14 @@
  * edges) alongside these fields.
  */
 import type { Symbol, SymbolKind } from '../model/symbol.js';
-import type { BlocInfo, Edge, ProviderInfo, WidgetInfo } from '../model/flutter.js';
+import type {
+  BlocInfo,
+  DynamicRouteNote,
+  Edge,
+  ProviderInfo,
+  RouteInfo,
+  WidgetInfo,
+} from '../model/flutter.js';
 import type { ImportEntry } from '../extractors/import-extractor.js';
 import type { PackageEntry } from './workspace.js';
 
@@ -28,6 +35,10 @@ export interface FileEntry {
   blocs: BlocInfo[];
   /** Riverpod providers declared in this file (Phase 3c). */
   providers: ProviderInfo[];
+  /** Top-level routes declared in this file (Phase 3d); nesting hangs off children. */
+  routes: RouteInfo[];
+  /** Route tables in this file the syntax layer cannot enumerate (Phase 3d). */
+  dynamicRoutes: DynamicRouteNote[];
   /** Partial state-management edges sourced from this file (Phase 3b bloc + 3c provider). */
   edges: Edge[];
   parseErrors: string[];
@@ -44,6 +55,10 @@ export class ProjectIndex {
   readonly blocs = new Map<string, BlocInfo>();
   /** Riverpod providers, aggregated across files (Phase 3c → 3e). */
   readonly providers: ProviderInfo[] = [];
+  /** Route forest, aggregated across files — multiple routers possible (Phase 3d). */
+  readonly routes: RouteInfo[] = [];
+  /** Dynamic route tables across files, for honest get_route_graph reporting (Phase 3d). */
+  readonly dynamicRoutes: DynamicRouteNote[] = [];
   /** Cross-cutting syntactic edges, aggregated across files (Phase 3b → 3e). */
   readonly edges: Edge[] = [];
   packages: PackageEntry[] = [];
@@ -64,6 +79,8 @@ export class ProjectIndex {
       this.blocs.set(bloc.symbolId, bloc);
     }
     this.providers.push(...entry.providers);
+    this.routes.push(...entry.routes);
+    this.dynamicRoutes.push(...entry.dynamicRoutes);
     this.edges.push(...entry.edges);
   }
 
@@ -82,10 +99,18 @@ export class ProjectIndex {
     for (const bloc of old.blocs) {
       this.blocs.delete(bloc.symbolId);
     }
-    // Providers & edges are owned by reference: drop the exact objects this file added.
+    // Providers, routes & edges are owned by reference: drop the exact objects this file added.
     for (const provider of old.providers) {
       const i = this.providers.indexOf(provider);
       if (i !== -1) this.providers.splice(i, 1);
+    }
+    for (const route of old.routes) {
+      const i = this.routes.indexOf(route);
+      if (i !== -1) this.routes.splice(i, 1);
+    }
+    for (const note of old.dynamicRoutes) {
+      const i = this.dynamicRoutes.indexOf(note);
+      if (i !== -1) this.dynamicRoutes.splice(i, 1);
     }
     for (const edge of old.edges) {
       const i = this.edges.indexOf(edge);

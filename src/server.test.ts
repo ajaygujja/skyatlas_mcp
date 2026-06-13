@@ -29,10 +29,16 @@ describe('flutter-intel MCP server (stdio E2E)', () => {
     await rm(root, { recursive: true, force: true });
   });
 
-  it('lists the Phase 2 + 3a tools (ping retired)', async () => {
+  it('lists the Phase 2 + 3a + 3d tools (ping retired)', async () => {
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
-    expect(names).toEqual(['find_symbol', 'get_project_map', 'get_symbol', 'get_widget_tree']);
+    expect(names).toEqual([
+      'find_symbol',
+      'get_project_map',
+      'get_route_graph',
+      'get_symbol',
+      'get_widget_tree',
+    ]);
   });
 
   it('get_project_map reports packages, stack, and health', async () => {
@@ -77,6 +83,13 @@ describe('flutter-intel MCP server (stdio E2E)', () => {
     expect(text).toContain('MaterialApp — :11');
     expect(text).toContain('home: HomeScreen — :11');
     expect(text).toContain('Tree is syntactic');
+  });
+
+  it('get_route_graph explains absence when no router is present', async () => {
+    const result = await client.callTool({ name: 'get_route_graph', arguments: {} });
+    const text = (result.content as { type: string; text: string }[])[0]?.text ?? '';
+    expect(text).toContain('No routes found');
+    expect(text).toContain('get_project_map');
   });
 
   it('explains empty results instead of returning nothing', async () => {

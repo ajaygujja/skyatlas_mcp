@@ -4,7 +4,7 @@
 > If you are an AI assistant building this project: read this entire document before writing any code.
 > Follow the **Working Rules for AI Assistants** section strictly. Do not assume — verify.
 
-**Status:** In implementation — Phases 0, 1, 2 complete; Phase 3a (widgets) + 3b (bloc/cubit) + 3c (riverpod) complete. See §8 for sub-phase status.
+**Status:** In implementation — Phases 0, 1, 2 complete; Phase 3a (widgets) + 3b (bloc/cubit) + 3c (riverpod) + 3d (routes) complete. See §8 for sub-phase status.
 **Last verified:** 2026-06-13 (ecosystem facts §2 checked against live docs; grammar behaviour re-verified empirically against the vendored `tree-sitter-dart` build)
 
 ---
@@ -436,8 +436,12 @@ team's Flutter expert.
 - Model: `ProviderInfo` in `src/model/flutter.ts`. Index: `ProjectIndex.providers` + `FileEntry.providers` (cache bumped to v4). No new tool (edges consumed by 3e). Fixtures: `fixtures/riverpod/`.
 - Known limits (Working Rule 8): the `endsWith('Provider')` suffix can't tell a real Riverpod constructor from an unrelated factory named `*Provider`; an edge whose first arg is a prefixed access (`repo.userProvider`) resolves the leading identifier (`repo`), not the provider — both reconciled by name-match in 3e.
 
-#### 3d — Routes
-- go_router (GoRoute/ShellRoute/StatefulShellRoute nesting, `fullPath` computation, redirect guards) + auto_route (`@RoutePage`, `AutoRoute` lists, `*.gr.dart` fallback). Model: `RouteInfo`. Tool: `get_route_graph`.
+#### 3d — Routes ✅ **complete (2026-06-13)**
+- go_router: `GoRoute`/`ShellRoute`/`StatefulShellRoute` nesting read from the CST (no paren counting) — route ctors parse cleanly (not generic at value position, so the §2 mis-parse does not bite). `argsOfCall` skips named-constructor selectors (`StatefulShellRoute.indexedStack`); `branches:` are flattened into children. `fullPath` computed by ancestor-join (absolute child path wins; shells contribute no segment and pass the parent path through). Screen widget from `builder:`/`pageBuilder:` (a `MaterialPage`/`CupertinoPage`/… page wrapper is unwrapped to its `child:`). Guards from `redirect:` (tear-off identifier, or `(inline redirect)`).
+- auto_route: the hand-written `AutoRoute(page: XRoute.page, path:, guards:, children:)` table (page ref captured verbatim) **plus** the `*.gr.dart` `PageRouteInfo` fallback (§7.4) — `static const String name` + the `PageInfo(builder:)` returned widget give the real screen. `get_route_graph` merges them by route name (`HomeRoute → HomeScreen`), falling back to the generated table when no hand-written one is indexed.
+- Honest absence (§12, Working Rule 8): a `routes:` given by reference (`GoRouter(routes: x)`) or a collection-`for`/`if`/spread is reported as a `DynamicRouteNote` — static siblings in the same list are still extracted.
+- Model: `RouteInfo` + `DynamicRouteNote` in `src/model/flutter.ts`. Index: `ProjectIndex.routes`/`.dynamicRoutes` + `FileEntry.routes`/`.dynamicRoutes` (cache bumped to v5). Tool: `get_route_graph`. Fixtures: `fixtures/routes/`.
+- Known limits: auto_route paths absent from the table are derived by the generator from the page name — we leave them unknown rather than guess; the route ctor suffix set is fixed (`GoRoute`/`ShellRoute`/`StatefulShellRoute`) so custom `RouteBase` subclasses are not detected.
 
 #### 3e — Wiring
 - Assemble the `Edge` graph from 3b–3d; resolve screen ↔ bloc/provider ↔ repository connections by name-match (label `confidence: 'syntactic'`). Tool: `find_state_wiring`.
