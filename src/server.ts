@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 import { statSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { buildIndex } from './index/indexer.js';
+import { startWatcher } from './index/watcher.js';
 import type { ProjectIndex } from './index/project-index.js';
 import { registerGetProjectMap } from './tools/get-project-map.js';
 import { registerFindSymbol } from './tools/find-symbol.js';
@@ -47,13 +49,31 @@ async function main(): Promise<void> {
     logger.error('index build failed', { error: String(err) });
   });
 
+  // Keep the index fresh as files change (§8 Phase 4). Starts only after the
+  // initial build succeeds, against that same instance; a watcher failure is
+  // logged and swallowed — stale-but-alive beats dead (§9.4).
+  void indexPromise
+    .then((index) => startWatcher(root, index))
+    .catch((err: unknown) => {
+      logger.error('watcher failed to start; index will not auto-refresh', {
+        error: String(err),
+      });
+    });
+
   const server = createServer(() => indexPromise);
   const transport = new StdioServerTransport();
   await server.connect(transport);
   logger.info('server started', { name: SERVER_NAME, version: SERVER_VERSION, root });
 }
 
-main().catch((err: unknown) => {
-  logger.error('fatal', { error: err instanceof Error ? err.message : String(err) });
-  process.exit(1);
-});
+// Run only when executed as the CLI entrypoint — importing this module (e.g. for
+// `createServer` in tests) must have no side effects: no stdio transport, no index
+// build, no watcher spawned on whatever cwd the test runner happens to be in.
+const isEntrypoint =
+  process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isEntrypoint) {
+  main().catch((err: unknown) => {
+    logger.error('fatal', { error: err instanceof Error ? err.message : String(err) });
+    process.exit(1);
+  });
+}

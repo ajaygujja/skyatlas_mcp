@@ -55,7 +55,14 @@ interface IgnoreScope {
 
 // Never descended into regardless of .gitignore: VCS internals, our own cache,
 // and pub/build output that is gitignored in any sane repo but costs a stat to learn.
-const HARD_SKIP_DIRS = new Set(['.git', '.flutter-intel', '.dart_tool', 'build', 'node_modules']);
+// Exported so the Phase 4 watcher prunes the exact same subtrees from chokidar.
+export const HARD_SKIP_DIRS = new Set([
+  '.git',
+  '.flutter-intel',
+  '.dart_tool',
+  'build',
+  'node_modules',
+]);
 
 export async function walkWorkspace(root: string): Promise<WorkspaceListing> {
   const dartFiles: string[] = [];

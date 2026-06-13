@@ -63,6 +63,33 @@ export class ProjectIndex {
   readonly edges: Edge[] = [];
   packages: PackageEntry[] = [];
 
+  /** Drop everything. Used before a full re-scan reloads the same instance. */
+  clear(): void {
+    this.files.clear();
+    this.symbolsById.clear();
+    this.byName.clear();
+    this.byKind.clear();
+    this.widgets.clear();
+    this.blocs.clear();
+    this.providers.length = 0;
+    this.routes.length = 0;
+    this.dynamicRoutes.length = 0;
+    this.edges.length = 0;
+    this.packages = [];
+  }
+
+  /**
+   * Replace this index's contents with another's, in place. The watcher's
+   * mass-change path rebuilds a fresh index, then folds it into the live
+   * instance the server already holds a reference to (§8 Phase 4) — re-running
+   * setFile rederives every lookup map from the new file entries.
+   */
+  replaceWith(other: ProjectIndex): void {
+    this.clear();
+    this.packages = other.packages;
+    for (const entry of other.files.values()) this.setFile(entry);
+  }
+
   /** Insert or replace a file's entry, keeping all lookup maps consistent. */
   setFile(entry: FileEntry): void {
     this.removeFile(entry.path);

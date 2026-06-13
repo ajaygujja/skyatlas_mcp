@@ -4,7 +4,7 @@
 > If you are an AI assistant building this project: read this entire document before writing any code.
 > Follow the **Working Rules for AI Assistants** section strictly. Do not assume — verify.
 
-**Status:** In implementation — Phases 0, 1, 2 complete; Phase 3 complete (3a widgets + 3b bloc/cubit + 3c riverpod + 3d routes + 3e wiring), all six v1 tools shipped; Phase 4 in progress (4a refactor-for-reuse complete, 4b watcher next). See §8 for sub-phase status.
+**Status:** In implementation — Phases 0, 1, 2 complete; Phase 3 complete (3a widgets + 3b bloc/cubit + 3c riverpod + 3d routes + 3e wiring), all six v1 tools shipped; Phase 4 complete (4a refactor-for-reuse + 4b filesystem watcher — live incremental index, no restart). See §8 for sub-phase status. Next: Phase 5 (hardening & team rollout).
 **Last verified:** 2026-06-13 (ecosystem facts §2 checked against live docs; grammar behaviour re-verified empirically against the vendored `tree-sitter-dart` build)
 
 ---
@@ -475,22 +475,40 @@ that gives the watcher its reusable primitives; 4b is the watcher itself.
   `removeFile`, so a per-file update keeps every lookup map consistent on its own.
 - No cache version bump — reuses the v5 `FileEntry` shape. Left green (build + lint + test + format).
 
-#### 4b — Watcher (next)
-- `src/index/watcher.ts` (Index layer; may call the indexer; **must not** import MCP or
-  tree-sitter — §4.1, Working Rule 6). chokidar (verify the installed v4 API against its types —
-  Working Rule 3; v4 dropped glob support, `ignored` is a predicate). Debounce 200 ms (§8).
-- Events: `add`/`change` → `indexFile` → `index.setFile`; `unlink` → `index.removeFile(relPath)`.
-  Rename arrives as unlink+add — handle both (verify chokidar's behavior).
-- Mass-change guard: > N files in one burst (branch switch / `git pull`) → fall back to a full
-  `buildIndex` re-scan instead of N per-file updates. A new/changed `pubspec.yaml` (package map)
-  or `.gitignore` also triggers a full re-scan — simplest correct thing.
-- Debounced disk-cache save (longer debounce than the 200 ms event debounce) keeps
-  `.flutter-intel/cache.json` fresh for warm restarts; never write per keystroke-level event.
-- Robustness (§9.4): a parse/read failure on one file logs to stderr and is skipped (already
-  handled by `indexFile` returning `null`); the watcher and index never die. Wire into `server.ts`
-  after the initial `buildIndex` resolves, against the same index instance; a watcher failure
-  must not kill the server. Tests mutate files on disk and await a per-batch callback (no sleep-flaky `setTimeout`).
-- **Exit criterion:** edit a route file, ask Claude for the route graph, see the change without restart; single-file update < 50 ms.
+#### 4b — Watcher ✅ **complete (2026-06-13)**
+- `src/index/watcher.ts` (Index layer; calls the indexer, imports neither MCP nor tree-sitter
+  — §4.1, Working Rule 6). chokidar **5.0.0** (verified against its installed types, Working
+  Rule 3: `watch(paths, opts)`, `ignored` is a `(path, stats?) => boolean` matcher, events
+  `add`/`change`/`unlink`, `close()` returns a Promise). `startWatcher(root, index, opts)`
+  resolves once chokidar fires `ready` (armed), so callers/tests never race setup. Debounce 200 ms (§8).
+- Events: `add`/`change` → `indexFile(root, rel, index.packages)` → `index.setFile`; `unlink` →
+  `index.removeFile(rel)`. Rename surfaces as unlink+add — both handled by the same paths. A
+  per-event `WorkspaceFilter.shouldIndex` (4a) gates upserts to exactly the cold-walk set.
+- Mass-change guard: > **50** files in one debounced burst (branch switch / `git pull`) → fall
+  back to a full `buildIndex` re-scan folded into the live instance via
+  `ProjectIndex.replaceWith` (the server holds that reference — can't swap it). The cache stays
+  warm so unchanged files are cheap. A changed `pubspec.yaml` (package map) or `.gitignore`
+  (ignore rules) also forces a full re-scan, which rebuilds the workspace filter. `// Decision:`
+  for N=50 is in the source (comfortably above a hand-save, far below a branch switch).
+- Debounced disk-cache save (2 s, separate from the 200 ms event debounce) keeps
+  `.flutter-intel/cache.json` fresh for warm restarts; `close()` flushes a pending save. No
+  cache version bump — reuses the v5 `FileEntry` shape.
+- Wiring needs **no** invalidation: `computeWiring` runs per `find_state_wiring` call (§9.5
+  lazy) and reads `index.edges` live; `setFile`/`removeFile` keep every map consistent atomically.
+- Robustness (§9.4): per-file read/parse failures return `null` from `indexFile` (logged to
+  stderr, skipped); a full-re-scan failure leaves the index intact; watcher errors are logged.
+  The watcher and index never die. Wired into `server.ts` after the initial `buildIndex`
+  resolves, against the same instance; a watcher failure is logged and swallowed.
+  (Also fixed: `server.ts` now runs `main()` only as the CLI entrypoint, so importing it in
+  tests has no side effects — previously it spawned a stray server/watcher on the test's cwd.)
+- Tests (`watcher.test.ts`): in-process, copy `mini-app` to a temp root, build, watch, mutate on
+  disk; await a per-batch callback via a buffering `BatchWaiter` (no sleep-flaky `setTimeout`),
+  and a bounded poll-until for the through-the-tool route assertion. Covers change/add/unlink,
+  the mass-change full re-scan, a pubspec full re-scan, debounced-cache freshness, the update
+  budget, and **a route-file edit changing `get_route_graph` output** (the exit criterion,
+  asserted through the real MCP tool over an in-memory transport). Watcher exposes a `usePolling`
+  option (legit for network FS) that tests use to make event delivery deterministic.
+- **Exit criterion (met):** edit a route file, ask `get_route_graph`, see the change without restart; single-file update < 50 ms.
 
 ### Phase 5 — Hardening & team rollout (target: 1 week)
 - Structured logging to stderr (stdout is the MCP channel — **never** print to stdout).
