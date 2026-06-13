@@ -1,0 +1,133 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`extractProviders > matches snapshot: consumer_view.dart 1`] = `
+{
+  "edges": [
+    {
+      "confidence": "syntactic",
+      "from": "fixtures/riverpod/consumer_view.dart#HomeView",
+      "kind": "watchesProvider",
+      "line": 12,
+      "to": "counterProvider",
+    },
+    {
+      "confidence": "syntactic",
+      "from": "fixtures/riverpod/consumer_view.dart#HomeView",
+      "kind": "watchesProvider",
+      "line": 13,
+      "to": "userProvider",
+    },
+    {
+      "confidence": "syntactic",
+      "from": "fixtures/riverpod/consumer_view.dart#HomeView",
+      "kind": "watchesProvider",
+      "line": 14,
+      "to": "asyncUserProvider",
+    },
+    {
+      "confidence": "syntactic",
+      "from": "fixtures/riverpod/consumer_view.dart#HomeView",
+      "kind": "watchesProvider",
+      "line": 16,
+      "to": "userNotifierProvider",
+    },
+  ],
+  "providers": [],
+}
+`;
+
+exports[`extractProviders > matches snapshot: generated_providers.dart 1`] = `
+{
+  "edges": [],
+  "providers": [
+    {
+      "declKind": "generated",
+      "file": "fixtures/riverpod/generated_providers.dart",
+      "line": 10,
+      "name": "count",
+      "symbolId": "fixtures/riverpod/generated_providers.dart#count",
+    },
+    {
+      "declKind": "generated",
+      "file": "fixtures/riverpod/generated_providers.dart",
+      "line": 14,
+      "name": "UserController",
+      "symbolId": "fixtures/riverpod/generated_providers.dart#UserController",
+    },
+    {
+      "declKind": "generated",
+      "file": "fixtures/riverpod/generated_providers.dart",
+      "line": 23,
+      "name": "appTitle",
+      "symbolId": "fixtures/riverpod/generated_providers.dart#appTitle",
+    },
+  ],
+}
+`;
+
+exports[`extractProviders > matches snapshot: providers.dart 1`] = `
+{
+  "edges": [],
+  "providers": [
+    {
+      "declKind": "global",
+      "file": "fixtures/riverpod/providers.dart",
+      "line": 7,
+      "name": "counterProvider",
+      "providerType": "StateProvider",
+      "typeArgs": [
+        "int",
+      ],
+    },
+    {
+      "declKind": "global",
+      "file": "fixtures/riverpod/providers.dart",
+      "line": 10,
+      "name": "userProvider",
+      "providerType": "Provider",
+      "typeArgs": [
+        "User",
+      ],
+    },
+    {
+      "declKind": "global",
+      "file": "fixtures/riverpod/providers.dart",
+      "line": 13,
+      "name": "asyncUserProvider",
+      "providerType": "FutureProvider",
+      "typeArgs": [
+        "User",
+      ],
+    },
+    {
+      "declKind": "global",
+      "file": "fixtures/riverpod/providers.dart",
+      "line": 16,
+      "name": "userByIdProvider",
+      "providerType": "Provider",
+      "typeArgs": [
+        "User",
+        "String",
+      ],
+    },
+    {
+      "declKind": "global",
+      "file": "fixtures/riverpod/providers.dart",
+      "line": 19,
+      "name": "userNotifierProvider",
+      "providerType": "NotifierProvider",
+      "typeArgs": [
+        "UserNotifier",
+        "UserState",
+      ],
+    },
+    {
+      "declKind": "global",
+      "file": "fixtures/riverpod/providers.dart",
+      "line": 22,
+      "name": "loggerProvider",
+      "providerType": "Provider",
+    },
+  ],
+}
+`;

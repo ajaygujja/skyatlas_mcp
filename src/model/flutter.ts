@@ -89,6 +89,32 @@ export interface BlocInfo {
   emitSites: number[];
 }
 
+/**
+ * A Riverpod provider (Phase 3c, §5.2). Two declaration shapes:
+ *  - `global`:    `final xProvider = Provider<T>((ref) => …)` — a top-level final.
+ *  - `generated`: `@riverpod` on a function or class (the `*.g.dart` companion
+ *                 declares the real provider; we record the annotated source).
+ *
+ * `providerType` is the constructor name as written (Provider / StateProvider /
+ * NotifierProvider / FutureProvider / …) for the global form — classified by
+ * string, never resolved. Absent for the generated form (the type lives in the
+ * generated file). Suffix rule `endsWith('Provider')` mirrors 3a/3b's convention.
+ */
+export interface ProviderInfo {
+  /** Id of the declaring Symbol when there is one (generated class/fn; some globals). */
+  symbolId?: string;
+  /** Variable name (global) or annotated function/class name (generated), as written. */
+  name: string;
+  declKind: 'global' | 'generated';
+  /** Constructor name for the global form, verbatim — e.g. "StateNotifierProvider". */
+  providerType?: string;
+  /** Type args when syntactically present, verbatim. */
+  typeArgs?: string[];
+  file: string;
+  /** Line of the declaration (1-based). */
+  line: number;
+}
+
 export type EdgeKind =
   | 'createsBloc'
   | 'readsBloc'
@@ -103,11 +129,11 @@ export type EdgeKind =
 export type EdgeConfidence = 'exact' | 'syntactic';
 
 /**
- * A cross-cutting, syntax-derived relationship (§5.2). Phase 3b emits only the
- * Bloc-related kinds — `createsBloc` (`BlocProvider(create:)`) and `readsBloc`
- * (`context.read/watch<X>()`, `BlocBuilder<X, _>`). `from` is the enclosing
- * class's symbolId (or the file path when at top level); `to` is a bare name —
- * resolution to a symbolId happens in 3e.
+ * A cross-cutting, syntax-derived relationship (§5.2). 3b emits the Bloc kinds —
+ * `createsBloc` (`BlocProvider(create:)`) and `readsBloc` (`context.read/watch<X>()`,
+ * `BlocBuilder<X, _>`); 3c adds `watchesProvider` (`ref.watch/read/listen(xProvider)`).
+ * `from` is the enclosing class's symbolId (or the file path when at top level);
+ * `to` is a bare name — resolution to a symbolId happens in 3e.
  */
 export interface Edge {
   from: string;

@@ -11,6 +11,7 @@ import { extractSymbols } from '../extractors/symbol-extractor.js';
 import { extractImports } from '../extractors/import-extractor.js';
 import { extractWidgets } from '../extractors/widget-extractor.js';
 import { extractBlocs } from '../extractors/bloc-extractor.js';
+import { extractProviders } from '../extractors/riverpod-extractor.js';
 import { ProjectIndex, type FileEntry } from './project-index.js';
 import { isGeneratedFile, packageForFile, walkWorkspace } from './workspace.js';
 import { loadCache, saveCache } from './cache.js';
@@ -95,7 +96,8 @@ function indexFileText(
   const { symbols, parseErrors } = extractSymbols(tree, relPath);
   const imports = extractImports(tree);
   const widgets = extractWidgets(tree, relPath);
-  const { blocs, edges } = extractBlocs(tree, relPath);
+  const { blocs, edges: blocEdges } = extractBlocs(tree, relPath);
+  const { providers, edges: providerEdges } = extractProviders(tree, relPath);
   tree.delete(); // wasm-side memory is manual; the Symbol model owns the data now
   const entry: FileEntry = {
     path: relPath,
@@ -105,7 +107,8 @@ function indexFileText(
     imports,
     widgets,
     blocs,
-    edges,
+    providers,
+    edges: [...blocEdges, ...providerEdges],
     parseErrors,
   };
   const pkg = packageForFile(relPath, packages);

@@ -4,7 +4,7 @@
 > If you are an AI assistant building this project: read this entire document before writing any code.
 > Follow the **Working Rules for AI Assistants** section strictly. Do not assume — verify.
 
-**Status:** In implementation — Phases 0, 1, 2 complete; Phase 3a (widgets) + 3b (bloc/cubit) complete. See §8 for sub-phase status.
+**Status:** In implementation — Phases 0, 1, 2 complete; Phase 3a (widgets) + 3b (bloc/cubit) + 3c (riverpod) complete. See §8 for sub-phase status.
 **Last verified:** 2026-06-13 (ecosystem facts §2 checked against live docs; grammar behaviour re-verified empirically against the vendored `tree-sitter-dart` build)
 
 ---
@@ -429,9 +429,12 @@ team's Flutter expert.
 - Model: `BlocInfo` + `Edge`/`EdgeKind`/`EdgeConfidence` in `src/model/flutter.ts`. Index: `ProjectIndex.blocs` + `.edges`, `FileEntry.blocs` + `.edges` (cache bumped to v3). No new tool (edges consumed by 3e). Fixtures: `fixtures/blocs/`.
 - Known limits (Working Rule 8): suffix classification can't distinguish a real Bloc base from an unrelated class whose name happens to end in `Bloc`/`Cubit`; `readsBloc` to a repository (`context.read<UserRepository>()`) is emitted too — syntax can't tell a bloc read from any other `context.read`, so 3e resolves/filters by name-match.
 
-#### 3c — Riverpod
-- Global providers + `@riverpod` generated; classify provider type by constructor name.
-- Emit partial `Edge`s: `ref.watch/read/listen`. Model: `ProviderInfo`. No new tool (edges consumed by 3e).
+#### 3c — Riverpod ✅ **complete (2026-06-13)**
+- Global providers (`final xProvider = SomethingProvider<…>(…)`) — suffix rule `endsWith('Provider')` (mirroring 3a/3b) classifies them; constructor name + type args captured verbatim. `@riverpod`/`@Riverpod(…)` generated function + class providers detected as `declKind: 'generated'` (the type lives in the un-generated `*.g.dart`, so `providerType` is absent there).
+- The §2 generic-at-value mis-parse bites single-type-arg providers (`StateProvider<int>(…)`, `FutureProvider.autoDispose<User>(…)`) → recovered from `relational_expression`; ≥2-type-arg + `.family` forms parse cleanly via `selector > argument_part > (type_arguments, arguments)`. Both paths handled.
+- Emits partial `watchesProvider` `Edge`s from `ref.watch/read/listen(xProvider)`, gated on receiver `ref` (the Riverpod idiom) so it never collides with 3b's `context.read<X>()` (type-arg form). `.notifier`/`.select(…)` suffixes resolve to the base provider.
+- Model: `ProviderInfo` in `src/model/flutter.ts`. Index: `ProjectIndex.providers` + `FileEntry.providers` (cache bumped to v4). No new tool (edges consumed by 3e). Fixtures: `fixtures/riverpod/`.
+- Known limits (Working Rule 8): the `endsWith('Provider')` suffix can't tell a real Riverpod constructor from an unrelated factory named `*Provider`; an edge whose first arg is a prefixed access (`repo.userProvider`) resolves the leading identifier (`repo`), not the provider — both reconciled by name-match in 3e.
 
 #### 3d — Routes
 - go_router (GoRoute/ShellRoute/StatefulShellRoute nesting, `fullPath` computation, redirect guards) + auto_route (`@RoutePage`, `AutoRoute` lists, `*.gr.dart` fallback). Model: `RouteInfo`. Tool: `get_route_graph`.

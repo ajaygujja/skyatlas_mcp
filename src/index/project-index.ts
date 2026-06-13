@@ -6,7 +6,7 @@
  * edges) alongside these fields.
  */
 import type { Symbol, SymbolKind } from '../model/symbol.js';
-import type { BlocInfo, Edge, WidgetInfo } from '../model/flutter.js';
+import type { BlocInfo, Edge, ProviderInfo, WidgetInfo } from '../model/flutter.js';
 import type { ImportEntry } from '../extractors/import-extractor.js';
 import type { PackageEntry } from './workspace.js';
 
@@ -26,7 +26,9 @@ export interface FileEntry {
   widgets: WidgetInfo[];
   /** Bloc/Cubit classes declared in this file (Phase 3b). */
   blocs: BlocInfo[];
-  /** Partial state-management edges sourced from this file (Phase 3b). */
+  /** Riverpod providers declared in this file (Phase 3c). */
+  providers: ProviderInfo[];
+  /** Partial state-management edges sourced from this file (Phase 3b bloc + 3c provider). */
   edges: Edge[];
   parseErrors: string[];
 }
@@ -40,6 +42,8 @@ export class ProjectIndex {
   readonly widgets = new Map<string, WidgetInfo>();
   /** Bloc/Cubit classes by symbolId (Phase 3b). */
   readonly blocs = new Map<string, BlocInfo>();
+  /** Riverpod providers, aggregated across files (Phase 3c → 3e). */
+  readonly providers: ProviderInfo[] = [];
   /** Cross-cutting syntactic edges, aggregated across files (Phase 3b → 3e). */
   readonly edges: Edge[] = [];
   packages: PackageEntry[] = [];
@@ -59,6 +63,7 @@ export class ProjectIndex {
     for (const bloc of entry.blocs) {
       this.blocs.set(bloc.symbolId, bloc);
     }
+    this.providers.push(...entry.providers);
     this.edges.push(...entry.edges);
   }
 
@@ -77,7 +82,11 @@ export class ProjectIndex {
     for (const bloc of old.blocs) {
       this.blocs.delete(bloc.symbolId);
     }
-    // Edges are owned by reference: drop the exact objects this file contributed.
+    // Providers & edges are owned by reference: drop the exact objects this file added.
+    for (const provider of old.providers) {
+      const i = this.providers.indexOf(provider);
+      if (i !== -1) this.providers.splice(i, 1);
+    }
     for (const edge of old.edges) {
       const i = this.edges.indexOf(edge);
       if (i !== -1) this.edges.splice(i, 1);
