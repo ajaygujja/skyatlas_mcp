@@ -14,7 +14,7 @@ import { extractBlocs } from '../extractors/bloc-extractor.js';
 import { extractProviders } from '../extractors/riverpod-extractor.js';
 import { extractRoutes } from '../extractors/route-extractor.js';
 import { ProjectIndex, type FileEntry } from './project-index.js';
-import { isGeneratedFile, packageForFile, walkWorkspace } from './workspace.js';
+import { isGeneratedFile, packageForFile, walkWorkspace, type PackageEntry } from './workspace.js';
 import { loadCache, saveCache } from './cache.js';
 import { logger } from '../shared/logger.js';
 
@@ -46,31 +46,14 @@ export async function buildIndex(
   let failedCount = 0;
 
   for (const relPath of dartFiles) {
-    let text: string;
-    try {
-      text = await readFile(join(root, relPath), 'utf8');
-    } catch (err) {
-      // Per-file failures are data, not exceptions (§9.4).
-      logger.warn('file unreadable, skipped', { file: relPath, error: String(err) });
+    const result = await indexFile(root, relPath, packages, cache);
+    if (!result) {
       failedCount++;
       continue;
     }
-    const contentHash = createHash('sha1').update(text).digest('hex');
-
-    const cached = cache.get(relPath);
-    if (cached && cached.contentHash === contentHash) {
-      // Package membership is recomputed: pubspecs may have moved since caching.
-      const entry: FileEntry = { ...cached };
-      delete entry.package;
-      const pkg = packageForFile(relPath, packages);
-      if (pkg) entry.package = pkg;
-      index.setFile(entry);
-      cachedCount++;
-      continue;
-    }
-
-    index.setFile(indexFileText(relPath, text, contentHash, packages));
-    parsedCount++;
+    index.setFile(result.entry);
+    if (result.fromCache) cachedCount++;
+    else parsedCount++;
   }
 
   await saveCache(root, index.files);
@@ -87,11 +70,59 @@ export async function buildIndex(
   return { index, stats };
 }
 
+/** Result of indexing one file: the entry plus whether it came from the cache. */
+export interface IndexedFile {
+  entry: FileEntry;
+  fromCache: boolean;
+}
+
+/**
+ * Index a single file: read → hash → (cache hit?) → parse → extract → FileEntry.
+ * The shared unit of work for both the cold walk and the Phase 4 watcher. Returns
+ * null on any read/parse failure — logged to stderr and skipped, never thrown
+ * (§9.4): one bad file must not abort the index or kill the watcher.
+ *
+ * Pass `cache` to short-circuit unchanged files by content hash (cold start);
+ * omit it to force a re-parse (a watcher event means the file just changed).
+ */
+export async function indexFile(
+  root: string,
+  relPath: string,
+  packages: PackageEntry[],
+  cache?: Map<string, FileEntry>,
+): Promise<IndexedFile | null> {
+  let text: string;
+  try {
+    text = await readFile(join(root, relPath), 'utf8');
+  } catch (err) {
+    logger.warn('file unreadable, skipped', { file: relPath, error: String(err) });
+    return null;
+  }
+  const contentHash = createHash('sha1').update(text).digest('hex');
+
+  const cached = cache?.get(relPath);
+  if (cached && cached.contentHash === contentHash) {
+    // Package membership is recomputed: pubspecs may have moved since caching.
+    const entry: FileEntry = { ...cached };
+    delete entry.package;
+    const pkg = packageForFile(relPath, packages);
+    if (pkg) entry.package = pkg;
+    return { entry, fromCache: true };
+  }
+
+  try {
+    return { entry: indexFileText(relPath, text, contentHash, packages), fromCache: false };
+  } catch (err) {
+    logger.warn('parse/extract failed, skipped', { file: relPath, error: String(err) });
+    return null;
+  }
+}
+
 function indexFileText(
   relPath: string,
   text: string,
   contentHash: string,
-  packages: { name: string; path: string }[],
+  packages: PackageEntry[],
 ): FileEntry {
   const tree = parseText(text);
   const { symbols, parseErrors } = extractSymbols(tree, relPath);

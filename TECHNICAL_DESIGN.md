@@ -4,7 +4,7 @@
 > If you are an AI assistant building this project: read this entire document before writing any code.
 > Follow the **Working Rules for AI Assistants** section strictly. Do not assume — verify.
 
-**Status:** In implementation — Phases 0, 1, 2 complete; Phase 3 complete (3a widgets + 3b bloc/cubit + 3c riverpod + 3d routes + 3e wiring). All six v1 tools shipped. See §8 for sub-phase status.
+**Status:** In implementation — Phases 0, 1, 2 complete; Phase 3 complete (3a widgets + 3b bloc/cubit + 3c riverpod + 3d routes + 3e wiring), all six v1 tools shipped; Phase 4 in progress (4a refactor-for-reuse complete, 4b watcher next). See §8 for sub-phase status.
 **Last verified:** 2026-06-13 (ecosystem facts §2 checked against live docs; grammar behaviour re-verified empirically against the vendored `tree-sitter-dart` build)
 
 ---
@@ -451,8 +451,45 @@ team's Flutter expert.
 - Tool: `find_state_wiring { screen? | bloc? | provider? }` (exactly one filter) — shows the chain screen → bloc/provider → repo, each edge with `file:line` and confidence; reverses the view (sources in, repos out) for bloc/provider filters. Honest absence (§6 rule 5) points at the detected stack. No new `FileEntry` field → wiring recomputed on demand (§9.5 lazy), **no cache bump** (stays v5). Fixtures: `fixtures/wiring/` (cross-file mini-graph). The 6th and final v1 tool.
 
 ### Phase 4 — Freshness (target: 2–3 evenings)
-- chokidar watcher: debounce 200 ms, re-parse changed file, replace its symbols, invalidate affected domain graphs (recompute lazily on next tool call).
-- Handle: file delete, rename, new file, branch switch (mass change → fall back to full re-scan when > N files change at once).
+
+Split into two independently-green sub-phases: 4a is a no-behavior-change refactor
+that gives the watcher its reusable primitives; 4b is the watcher itself.
+
+#### 4a — Refactor for reuse ✅ **complete (2026-06-13)**
+- Extracted `indexFile(root, relPath, packages, cache?)` from `indexer.ts`: the shared
+  read → hash → (cache hit?) → parse → extract → `FileEntry` unit both `buildIndex` and the
+  watcher use. Returns `null` on any read/parse failure (logged to stderr, skipped, never
+  thrown — §9.4); `fromCache` distinguishes cache hits for stats. `buildIndex`'s loop is now
+  three lines over it. Genuine shared logic, not a speculative abstraction (§9.1 rule-of-three N/A).
+- Extracted `createWorkspaceFilter(root): Promise<WorkspaceFilter>` in `workspace.ts`: a
+  reusable `shouldIndex(relPath)` test mirroring `walkWorkspace`'s exact selection (.dart only,
+  never inside `HARD_SKIP_DIRS`, never matched by an applicable `.gitignore`). Shares the
+  `IgnoreScope`/`isIgnored`/`HARD_SKIP_DIRS` primitives and a new `appendGitignoreScope` helper
+  with the cold walk — the watcher does not reinvent ignore logic. Scopes collected once at
+  build; a changed `.gitignore`/`pubspec.yaml` forces a full re-scan (4b), which rebuilds them.
+  (Known limit: cross-file `!negation` ordering isn't modeled — extreme edge; a full re-scan resolves it.)
+- Confirmed (no code needed): wiring is recomputed per tool call (`computeWiring` is invoked
+  inside the `find_state_wiring` handler, §9.5 lazy) — it reads `index.edges` live, so the
+  watcher needs **no** explicit wiring invalidation. Domain graphs (widgets/blocs/providers/
+  routes/edges) live on `FileEntry` and are replaced atomically by `ProjectIndex.setFile`/
+  `removeFile`, so a per-file update keeps every lookup map consistent on its own.
+- No cache version bump — reuses the v5 `FileEntry` shape. Left green (build + lint + test + format).
+
+#### 4b — Watcher (next)
+- `src/index/watcher.ts` (Index layer; may call the indexer; **must not** import MCP or
+  tree-sitter — §4.1, Working Rule 6). chokidar (verify the installed v4 API against its types —
+  Working Rule 3; v4 dropped glob support, `ignored` is a predicate). Debounce 200 ms (§8).
+- Events: `add`/`change` → `indexFile` → `index.setFile`; `unlink` → `index.removeFile(relPath)`.
+  Rename arrives as unlink+add — handle both (verify chokidar's behavior).
+- Mass-change guard: > N files in one burst (branch switch / `git pull`) → fall back to a full
+  `buildIndex` re-scan instead of N per-file updates. A new/changed `pubspec.yaml` (package map)
+  or `.gitignore` also triggers a full re-scan — simplest correct thing.
+- Debounced disk-cache save (longer debounce than the 200 ms event debounce) keeps
+  `.flutter-intel/cache.json` fresh for warm restarts; never write per keystroke-level event.
+- Robustness (§9.4): a parse/read failure on one file logs to stderr and is skipped (already
+  handled by `indexFile` returning `null`); the watcher and index never die. Wire into `server.ts`
+  after the initial `buildIndex` resolves, against the same index instance; a watcher failure
+  must not kill the server. Tests mutate files on disk and await a per-batch callback (no sleep-flaky `setTimeout`).
 - **Exit criterion:** edit a route file, ask Claude for the route graph, see the change without restart; single-file update < 50 ms.
 
 ### Phase 5 — Hardening & team rollout (target: 1 week)
