@@ -10,7 +10,18 @@ export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 const LEVEL_ORDER: Record<LogLevel, number> = { debug: 0, info: 1, warn: 2, error: 3 };
 
-const minLevel: LogLevel = (process.env['FLUTTER_INTEL_LOG'] as LogLevel | undefined) ?? 'info';
+/**
+ * Threshold from `FLUTTER_INTEL_LOG` (debug|info|warn|error), default `info`.
+ * An unset or unrecognized value falls back to `info` rather than silently
+ * disabling the level filter — a bogus `minLevel` would make every comparison
+ * NaN and leak debug noise. Resolved once at module load.
+ */
+function resolveMinLevel(): LogLevel {
+  const raw = process.env['FLUTTER_INTEL_LOG']?.toLowerCase();
+  return raw && raw in LEVEL_ORDER ? (raw as LogLevel) : 'info';
+}
+
+const minLevel: LogLevel = resolveMinLevel();
 
 export function log(level: LogLevel, message: string, data?: Record<string, unknown>): void {
   if (LEVEL_ORDER[level] < LEVEL_ORDER[minLevel]) return;

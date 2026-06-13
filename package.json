@@ -6,6 +6,11 @@
   "bin": {
     "flutter-intel-mcp": "dist/server.js"
   },
+  "files": [
+    "dist",
+    "vendor/tree-sitter-dart.wasm",
+    "vendor/GRAMMAR_VERSION"
+  ],
   "engines": {
     "node": ">=20"
   },

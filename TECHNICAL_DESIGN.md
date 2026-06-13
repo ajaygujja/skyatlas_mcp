@@ -4,7 +4,7 @@
 > If you are an AI assistant building this project: read this entire document before writing any code.
 > Follow the **Working Rules for AI Assistants** section strictly. Do not assume — verify.
 
-**Status:** In implementation — Phases 0, 1, 2 complete; Phase 3 complete (3a widgets + 3b bloc/cubit + 3c riverpod + 3d routes + 3e wiring), all six v1 tools shipped; Phase 4 complete (4a refactor-for-reuse + 4b filesystem watcher — live incremental index, no restart). See §8 for sub-phase status. Next: Phase 5 (hardening & team rollout).
+**Status:** v1 code complete — Phases 0, 1, 2 done; Phase 3 done (3a widgets + 3b bloc/cubit + 3c riverpod + 3d routes + 3e wiring), all six v1 tools shipped; Phase 4 done (4a refactor-for-reuse + 4b filesystem watcher — live incremental index, no restart); Phase 5 done (hardening: validated log levels + stdout guard, parse-error health line, npm packaging, README/LICENSE/CONTRIBUTING). See §8 for sub-phase status. Remaining: the human dogfood rollout (§8 Phase 5, not code) and deferred future features (§8).
 **Last verified:** 2026-06-13 (ecosystem facts §2 checked against live docs; grammar behaviour re-verified empirically against the vendored `tree-sitter-dart` build)
 
 ---
@@ -510,12 +510,12 @@ that gives the watcher its reusable primitives; 4b is the watcher itself.
   option (legit for network FS) that tests use to make event delivery deterministic.
 - **Exit criterion (met):** edit a route file, ask `get_route_graph`, see the change without restart; single-file update < 50 ms.
 
-### Phase 5 — Hardening & team rollout (target: 1 week)
-- Structured logging to stderr (stdout is the MCP channel — **never** print to stdout).
-- Graceful degradation: parse error in one file → log, skip, continue; index never dies.
-- README: install (`npx`-able package), Claude Code + Cursor config snippets, "run alongside the official Dart MCP server" guidance.
-- Dogfood ladder: you (1 week) → 2 teammates → whole team. Every wrong answer becomes a fixture before it becomes a fix.
-- **Exit criterion:** a teammate installs from README alone, with no help from you.
+### Phase 5 — Hardening & team rollout ✅ **code complete (2026-06-13)**
+- Structured logging to stderr with a validated `FLUTTER_INTEL_LOG=debug|info|warn|error` level (default `info`; an invalid value falls back to `info` rather than disabling the filter). A guard test (`src/shared/logger.test.ts`) scans production `src/` and fails the build on any `console.*`/`process.stdout` — stdout stays the exclusive MCP channel (Working Rule 7).
+- Graceful degradation: parse error in one file → logged, skipped, index continues. `get_project_map` surfaces an index-health line naming the broken files; an in-memory MCP test (`src/tools/get-project-map.test.ts`) pins it against a deliberately broken `.dart`. A broken file yields `parseErrors` (localized ERROR node), not an index failure.
+- Packaging (publish-ready, not published): `package.json` `"files"` ships only `dist/` + the vendored `.wasm` + `GRAMMAR_VERSION`; `npm pack` = 59 files, ~195 KB packed (no src/fixtures/test leaks). `node dist/server.js <repo>` boots from a clean checkout, resolves the wasm by `import.meta.url` abs path, and writes nothing to stdout pre-handshake. Cold local boot is sub-second; the §11.3 <15 s budget is the one-time `npx -y` download.
+- README (the exit criterion): pitch, Node ≥ 20 + grammar version, Claude Code (`claude mcp add … node dist/server.js <repo>`, `-s project`) + Cursor install, `.flutter-intel/` gitignore note, the six tools with per-tool "ask Claude X", run-alongside-the-Dart-MCP-server, a paste-in `CLAUDE.md` navigation directive (§12), verify-it-works, and the security/privacy guarantees (§9.7). `LICENSE` (MIT) + `CONTRIBUTING.md` (dogfood ladder) added.
+- **Exit criterion (code):** a teammate installs from README alone. The human dogfood ladder (you → 2 teammates → whole team) is the remaining non-code rollout step, captured in `CONTRIBUTING.md`. Every wrong answer becomes a fixture before it becomes a fix.
 
 ### Future features (explicitly deferred — design supports them; do NOT build in v1)
 
