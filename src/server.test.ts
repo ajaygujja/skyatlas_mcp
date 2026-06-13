@@ -29,10 +29,11 @@ describe('flutter-intel MCP server (stdio E2E)', () => {
     await rm(root, { recursive: true, force: true });
   });
 
-  it('lists the Phase 2 + 3a + 3d tools (ping retired)', async () => {
+  it('lists all six v1 tools (ping retired)', async () => {
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual([
+      'find_state_wiring',
       'find_symbol',
       'get_project_map',
       'get_route_graph',

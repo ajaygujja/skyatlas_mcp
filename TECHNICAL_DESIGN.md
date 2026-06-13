@@ -4,7 +4,7 @@
 > If you are an AI assistant building this project: read this entire document before writing any code.
 > Follow the **Working Rules for AI Assistants** section strictly. Do not assume — verify.
 
-**Status:** In implementation — Phases 0, 1, 2 complete; Phase 3a (widgets) + 3b (bloc/cubit) + 3c (riverpod) + 3d (routes) complete. See §8 for sub-phase status.
+**Status:** In implementation — Phases 0, 1, 2 complete; Phase 3 complete (3a widgets + 3b bloc/cubit + 3c riverpod + 3d routes + 3e wiring). All six v1 tools shipped. See §8 for sub-phase status.
 **Last verified:** 2026-06-13 (ecosystem facts §2 checked against live docs; grammar behaviour re-verified empirically against the vendored `tree-sitter-dart` build)
 
 ---
@@ -443,8 +443,12 @@ team's Flutter expert.
 - Model: `RouteInfo` + `DynamicRouteNote` in `src/model/flutter.ts`. Index: `ProjectIndex.routes`/`.dynamicRoutes` + `FileEntry.routes`/`.dynamicRoutes` (cache bumped to v5). Tool: `get_route_graph`. Fixtures: `fixtures/routes/`.
 - Known limits: auto_route paths absent from the table are derived by the generator from the page name — we leave them unknown rather than guess; the route ctor suffix set is fixed (`GoRoute`/`ShellRoute`/`StatefulShellRoute`) so custom `RouteBase` subclasses are not detected.
 
-#### 3e — Wiring
-- Assemble the `Edge` graph from 3b–3d; resolve screen ↔ bloc/provider ↔ repository connections by name-match (label `confidence: 'syntactic'`). Tool: `find_state_wiring`.
+#### 3e — Wiring ✅ **complete (2026-06-13)**
+- Assembles the `Edge` graph the earlier sub-phases emit (createsBloc/readsBloc from 3b, watchesProvider from 3c) into resolved connections — does **not** re-extract. All resolution lives in `src/index/wiring.ts` (`computeWiring`); the tool only queries + formats (Working Rule 6 — no tree-sitter reaches the tool).
+- Each edge's bare `to` is resolved to a symbolId by name-match via `ProjectIndex.byName`; `confidence: 'syntactic'` kept throughout (name-match ≠ type resolution). An unresolved `to` stays a bare name, labeled `(unresolved …)` — never invented (Working Rule 8).
+- Screen ↔ bloc/provider: a screen's connections = edges whose `from` is the screen's class symbolId **plus** its `State<Screen>` companion class (a stateful screen's `context.read` is anchored on the State class). `RouteInfo.screenWidget` (3d) is cross-referenced so wiring is reachable by route.
+- Repositories: read the bloc/cubit class's Symbol children — constructor params + field declarations; a param/field whose type **name** resolves to a class in the index is a syntactic repo edge (§7.3 last row). Unresolved types (primitives/SDK/unindexed) are dropped.
+- Tool: `find_state_wiring { screen? | bloc? | provider? }` (exactly one filter) — shows the chain screen → bloc/provider → repo, each edge with `file:line` and confidence; reverses the view (sources in, repos out) for bloc/provider filters. Honest absence (§6 rule 5) points at the detected stack. No new `FileEntry` field → wiring recomputed on demand (§9.5 lazy), **no cache bump** (stays v5). Fixtures: `fixtures/wiring/` (cross-file mini-graph). The 6th and final v1 tool.
 
 ### Phase 4 — Freshness (target: 2–3 evenings)
 - chokidar watcher: debounce 200 ms, re-parse changed file, replace its symbols, invalidate affected domain graphs (recompute lazily on next tool call).
