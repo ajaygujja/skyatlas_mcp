@@ -11,6 +11,10 @@ in **one tool call** instead of ten rounds of grep-and-read.
 It is **read-only**, runs **entirely on your machine**, and makes **no network calls** at runtime
 (see [Security & privacy](#security--privacy)). Your code never leaves the box.
 
+> **New here?** [`docs/GUIDE.md`](docs/GUIDE.md) is the full guide — what MCP is, how to test
+> the server against any Flutter project, the `doctor` health command, what to do when parsing
+> fails, sharing with a team, and improving it over time. Written for both humans and AI.
+
 ---
 
 ## Requirements
@@ -156,6 +160,20 @@ claude mcp list
 #    - Edit a route file in the repo and save.
 #    - Ask again: "Show me the route graph."  → the change appears.
 ```
+
+For a parse-coverage report **without** an AI client — exactly which files indexed cleanly and
+which didn't — run the `doctor` command from this repo against your Flutter app:
+
+```bash
+pnpm doctor -- /abs/path/to/your-flutter-app --cold     # human report
+pnpm doctor -- /abs/path/to/your-flutter-app --json     # machine-readable (CI; exits 1 on skips)
+```
+
+(The `--` is needed whenever you pass `--cold`/`--json`, so `pnpm` forwards the flags to the
+script instead of parsing them itself. A bare path with no flags doesn't need it.)
+
+See [`docs/GUIDE.md`](docs/GUIDE.md#6-the-doctor-command--full-reference) for the full reference,
+including how to run it from inside your Flutter project's directory.
 
 The index builds in the background on startup (the MCP handshake returns immediately; tool calls
 await readiness) and a filesystem watcher re-indexes changed files incrementally — a single saved

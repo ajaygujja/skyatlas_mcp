@@ -19,6 +19,12 @@ import { isGeneratedFile, packageForFile, walkWorkspace, type PackageEntry } fro
 import { loadCache, saveCache } from './cache.js';
 import { logger } from '../shared/logger.js';
 
+/** A file that could not be read or parsed at all (Tier A) — skipped, not indexed. */
+export interface IndexFailure {
+  file: string;
+  error: string;
+}
+
 export interface IndexStats {
   fileCount: number;
   parsedCount: number;
@@ -26,6 +32,8 @@ export interface IndexStats {
   failedCount: number;
   packageCount: number;
   elapsedMs: number;
+  /** Paths+reasons of the `failedCount` files that were skipped entirely. */
+  failures: IndexFailure[];
 }
 
 export async function buildIndex(
@@ -44,14 +52,11 @@ export async function buildIndex(
 
   let parsedCount = 0;
   let cachedCount = 0;
-  let failedCount = 0;
+  const failures: IndexFailure[] = [];
 
   for (const relPath of dartFiles) {
-    const result = await indexFile(root, relPath, packages, cache);
-    if (!result) {
-      failedCount++;
-      continue;
-    }
+    const result = await indexFile(root, relPath, packages, cache, failures);
+    if (!result) continue;
     index.setFile(result.entry);
     if (result.fromCache) cachedCount++;
     else parsedCount++;
@@ -63,9 +68,10 @@ export async function buildIndex(
     fileCount: index.files.size,
     parsedCount,
     cachedCount,
-    failedCount,
+    failedCount: failures.length,
     packageCount: packages.length,
     elapsedMs: Math.round(performance.now() - started),
+    failures,
   };
   logger.info('index built', { ...stats });
   return { index, stats };
@@ -91,12 +97,14 @@ export async function indexFile(
   relPath: string,
   packages: PackageEntry[],
   cache?: Map<string, FileEntry>,
+  failures?: IndexFailure[],
 ): Promise<IndexedFile | null> {
   let text: string;
   try {
     text = await readFile(join(root, relPath), 'utf8');
   } catch (err) {
     logger.warn('file unreadable, skipped', { file: relPath, error: String(err) });
+    failures?.push({ file: relPath, error: `unreadable: ${String(err)}` });
     return null;
   }
   const contentHash = createHash('sha1').update(text).digest('hex');
@@ -115,6 +123,7 @@ export async function indexFile(
     return { entry: indexFileText(relPath, text, contentHash, packages), fromCache: false };
   } catch (err) {
     logger.warn('parse/extract failed, skipped', { file: relPath, error: String(err) });
+    failures?.push({ file: relPath, error: `parse/extract: ${String(err)}` });
     return null;
   }
 }

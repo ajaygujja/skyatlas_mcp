@@ -20,6 +20,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "dump-tree": "tsx scripts/dump-tree.ts",
+    "doctor": "tsx scripts/doctor.ts",
     "benchmark": "tsx scripts/benchmark.ts",
     "lint": "eslint src scripts --max-warnings 0",
     "format": "prettier --write .",
