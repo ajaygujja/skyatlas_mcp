@@ -200,7 +200,12 @@ function edgeAt(node: Node, from: string, out: Edge[]): void {
  * `BlocProvider(create: (_) => XBloc(...))` → the constructed bloc name. Observed:
  *   (identifier 'BlocProvider') (selector (argument_part (arguments
  *     (named_argument (label (identifier 'create')) (function_expression …)))))
- * Returns the first PascalCase identifier inside the create argument's value.
+ * Returns the first constructor-cased name in the closure BODY — covering both a
+ * direct `XBloc(...)` (an `identifier`) and a service-locator handoff
+ * `sl<XCubit>()` / `getIt<XCubit>()` (a `type_identifier` inside `type_arguments`).
+ * The body, not the whole value, is scanned: a typed closure param
+ * (`(BuildContext c) => …`) carries a PascalCase `type_identifier` that is NOT
+ * the bloc, and it precedes the body in document order.
  */
 function blocProviderCreates(idNode: Node): string | undefined {
   const ap = argumentPartAfter(idNode);
@@ -208,9 +213,32 @@ function blocProviderCreates(idNode: Node): string | undefined {
   if (!args) return undefined;
   for (const arg of args.namedChildren) {
     if (arg.type !== 'named_argument' || labelOf(arg) !== 'create') continue;
-    for (const ident of arg.descendantsOfType('identifier')) {
-      if (isConstructorName(ident.text)) return ident.text;
-    }
+    const value = arg.namedChildren.find((c) => c.type !== 'label');
+    if (!value) return undefined;
+    const scope =
+      value.type === 'function_expression'
+        ? (value.namedChildren.find((c) => c.type === 'function_expression_body') ?? value)
+        : value;
+    return firstConstructorCasedName(scope);
+  }
+  return undefined;
+}
+
+/**
+ * First `identifier`/`type_identifier` with a constructor-cased name in document
+ * order under `node`. `type_identifier` is included so `sl<XCubit>()` resolves —
+ * the cubit lives in `type_arguments`, not as a plain `identifier`.
+ */
+function firstConstructorCasedName(node: Node): string | undefined {
+  if (
+    (node.type === 'identifier' || node.type === 'type_identifier') &&
+    isConstructorName(node.text)
+  ) {
+    return node.text;
+  }
+  for (const child of node.namedChildren) {
+    const found = firstConstructorCasedName(child);
+    if (found) return found;
   }
   return undefined;
 }

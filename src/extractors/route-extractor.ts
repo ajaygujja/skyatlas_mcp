@@ -139,7 +139,14 @@ function buildGoRoute(
     line: line(idNode),
     children: [],
   };
+  if (isShell) route.isShell = true;
   if (path !== undefined) route.path = path;
+  // A non-literal `path:` (a const reference like `RoutePaths.home`) is kept
+  // verbatim for display-time resolution instead of being dropped (§5.1 honesty).
+  else if (!isShell) {
+    const expr = pathExprArg(args);
+    if (expr !== undefined) route.pathExpr = expr;
+  }
   const name = stringArg(args, 'name');
   if (name !== undefined) route.name = name;
   if (fullPath !== undefined) route.fullPath = fullPath;
@@ -366,6 +373,23 @@ function stringArg(args: Node | undefined, label: string): string | undefined {
   return val?.type === 'string_literal' ? stripQuotes(val.text) : undefined;
 }
 
+/**
+ * Verbatim text of a non-literal `path:` value (a const reference), or undefined
+ * when the path is absent or a plain string literal. `path: RoutePaths.home`
+ * parses as `identifier 'RoutePaths'` + sibling `selector '.home'`, so the full
+ * reference is the concatenation of the argument's non-label children.
+ */
+function pathExprArg(args: Node | undefined): string | undefined {
+  if (!args) return undefined;
+  for (const arg of args.namedChildren) {
+    if (arg.type !== 'named_argument' || labelOf(arg) !== 'path') continue;
+    const parts = arg.namedChildren.filter((c) => c.type !== 'label');
+    if (parts.length === 0 || parts[0]?.type === 'string_literal') return undefined;
+    return parts.map((p) => p.text).join('');
+  }
+  return undefined;
+}
+
 /** Screen widget from a route's `builder:` (else `pageBuilder:`) argument. */
 function screenFromBuilders(args: Node): string | undefined {
   const fn = namedArgValue(args, 'builder') ?? namedArgValue(args, 'pageBuilder');
@@ -373,14 +397,21 @@ function screenFromBuilders(args: Node): string | undefined {
 }
 
 /**
- * The first widget construction a builder closure returns, handling both arrow
- * (`=> const X()`) and block (`{ return X(); }`) bodies. A go_router Page
+ * The widget construction a builder closure returns, handling both arrow
+ * (`=> const X()`) and block (`{ … return X(); }`) bodies. A go_router Page
  * wrapper (MaterialPage/…) is unwrapped to its `child:` screen.
+ *
+ * For a block body the LAST top-level `return` is used, not the first
+ * construction in document order: a `pageBuilder` commonly opens with a
+ * null-guard early return (`if (x == null) return ErrorPage();`) and falls
+ * through to the real screen — picking the first construction would report the
+ * guard. Returns inside nested closures (a child `builder:`) are ignored.
  */
 function screenFromFunction(fn: Node): string | undefined {
   const body = fn.namedChildren.find((c) => c.type === 'function_expression_body');
   if (!body) return undefined;
-  const built = firstConstruction(body);
+  const target = lastTopLevelReturn(body) ?? body;
+  const built = firstConstruction(target);
   if (!built) return undefined;
   if (PAGE_WRAPPERS.has(built.name) && built.args) {
     const child = namedArgValue(built.args, 'child');
@@ -388,6 +419,26 @@ function screenFromFunction(fn: Node): string | undefined {
     if (inner) return inner.name;
   }
   return built.name;
+}
+
+/**
+ * The last `return_statement` belonging to THIS function body (block-bodied
+ * closures), in document order — guard early-returns precede the real one. Nested
+ * `function_expression`s are not descended into, so an inner closure's return
+ * never masquerades as this closure's screen. Returns undefined for an arrow body
+ * (no `return_statement`), leaving the caller to scan the expression directly.
+ */
+function lastTopLevelReturn(body: Node): Node | undefined {
+  const returns: Node[] = [];
+  const walk = (node: Node): void => {
+    for (const child of node.namedChildren) {
+      if (child.type === 'function_expression') continue;
+      if (child.type === 'return_statement') returns.push(child);
+      walk(child);
+    }
+  };
+  walk(body);
+  return returns.at(-1);
 }
 
 /**

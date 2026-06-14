@@ -15,6 +15,7 @@ import type {
   WidgetInfo,
 } from '../model/flutter.js';
 import type { ImportEntry } from '../extractors/import-extractor.js';
+import type { StringConsts } from '../extractors/string-const-extractor.js';
 import type { PackageEntry } from './workspace.js';
 
 export interface FileEntry {
@@ -41,6 +42,8 @@ export interface FileEntry {
   dynamicRoutes: DynamicRouteNote[];
   /** Partial state-management edges sourced from this file (Phase 3b bloc + 3c provider). */
   edges: Edge[];
+  /** String constants declared in this file, for route path-const resolution. */
+  stringConsts: StringConsts;
   parseErrors: string[];
 }
 
@@ -171,6 +174,23 @@ export class ProjectIndex {
     }
     for (const tier of tiers) tier.sort((a, b) => a.id.localeCompare(b.id));
     return tiers.flat();
+  }
+
+  /**
+   * Workspace-wide string constants, for resolving route path consts in
+   * get_route_graph. Recomputed on demand (called once per route-graph request)
+   * — no incremental aggregation to keep consistent across edits. Qualified keys
+   * (`RoutePaths.home`) are unique; bare keys keep the first value seen.
+   */
+  stringConsts(): Map<string, string> {
+    const map = new Map<string, string>();
+    for (const file of this.files.values()) {
+      for (const [key, value] of Object.entries(file.stringConsts)) {
+        if (key.includes('.')) map.set(key, value);
+        else if (!map.has(key)) map.set(key, value);
+      }
+    }
+    return map;
   }
 
   /** All parse errors across the index, for the get_project_map health line. */

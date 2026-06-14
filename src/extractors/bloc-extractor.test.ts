@@ -80,6 +80,27 @@ describe('extractBlocs', () => {
     });
   });
 
+  it('resolves a cubit created via a service locator (sl<X>() / getIt<X>())', async () => {
+    const { edges } = await extractFixture('locator_provider.dart');
+    expect(edges).toContainEqual({
+      from: 'fixtures/blocs/locator_provider.dart#WorkLogListScreen',
+      to: 'WorkLogListCubit',
+      kind: 'createsBloc',
+      line: 12,
+      confidence: 'syntactic',
+    });
+    // A typed closure param (`BuildContext context`) must not be mistaken for the
+    // created bloc — the locator type arg is.
+    expect(edges).toContainEqual({
+      from: 'fixtures/blocs/locator_provider.dart#SearchScreen',
+      to: 'SearchCubit',
+      kind: 'createsBloc',
+      line: 24,
+      confidence: 'syntactic',
+    });
+    expect(edges.some((e) => e.to === 'BuildContext')).toBe(false);
+  });
+
   it('emits readsBloc from context.watch<X>() and the BlocBuilder<X, _> mis-parse', async () => {
     const { edges } = await extractFixture('home_screen.dart');
     const reads = edges.filter((e) => e.from === 'fixtures/blocs/home_screen.dart#_HomeView');

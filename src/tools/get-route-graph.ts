@@ -57,19 +57,20 @@ export function registerGetRouteGraph(
 
 function formatRouteGraph(index: ProjectIndex, router: RouterKind | undefined): string[] {
   const wanted = (k: RouterKind): boolean => router === undefined || router === k;
+  const consts = index.stringConsts();
   const lines: string[] = [];
   const body: string[] = [];
 
   const go = index.routes.filter((r) => r.router === 'go_router');
   if (wanted('go_router') && go.length > 0) {
     body.push('## go_router');
-    for (const route of go) renderRoute(route, 0, undefined, body);
+    for (const route of go) renderRoute(route, 0, undefined, consts, undefined, body);
     body.push('');
   }
 
   if (wanted('auto_route')) {
     const auto = index.routes.filter((r) => r.router === 'auto_route');
-    renderAutoRoute(auto, index, body);
+    renderAutoRoute(auto, index, consts, body);
   }
 
   const dynamics = index.dynamicRoutes.filter((d) => wanted(d.router));
@@ -93,31 +94,80 @@ function formatRouteGraph(index: ProjectIndex, router: RouterKind | undefined): 
   lines.push('');
   lines.push(...capLines(body, MAX_LINES, 'filter with router='));
   lines.push(
-    'Paths/screens are syntactic — screen names are constructors as written, not resolved.',
+    'Paths/screens are syntactic — screen names are constructors as written, not resolved. ' +
+      'Const paths (e.g. `RoutePaths.home`) are resolved from indexed string consts where possible; ' +
+      'an unresolved one is shown verbatim and labelled.',
   );
   return lines;
 }
 
-/** Renders one go_router subtree; `screenOverride` lets auto_route inject a resolved screen. */
+/**
+ * Renders one go_router subtree, resolving each route's full path top-down.
+ * `parentPath` is the resolved full path of the enclosing route (undefined at the
+ * top). This is what makes a relative literal child under a const-path parent
+ * (`path: 'edit'` nested under `path: RoutePaths.workLogDetail`) render as the
+ * true `/work-log-detail/edit` rather than just its own `/edit` — the per-file
+ * extractor cannot join against a const it has not yet resolved. Shells and
+ * unresolved consts pass the parent context through unchanged.
+ */
 function renderRoute(
   route: RouteInfo,
   depth: number,
   screenOverride: string | undefined,
+  consts: Map<string, string>,
+  parentPath: string | undefined,
   out: string[],
 ): void {
-  out.push(routeLine(route, depth, screenOverride));
-  for (const child of route.children) renderRoute(child, depth + 1, undefined, out);
+  const { seg, label } = ownSegment(route, consts);
+  const full = seg !== undefined ? joinResolved(parentPath, seg) : undefined;
+  const display = full ?? label ?? '(no explicit path)';
+  out.push(routeLine(route, depth, screenOverride, display));
+  const childContext = full ?? parentPath;
+  for (const child of route.children) {
+    renderRoute(child, depth + 1, undefined, consts, childContext, out);
+  }
 }
 
 /** go_router line: `path → ScreenWidget (name) — file:line [guards]`. */
-function routeLine(route: RouteInfo, depth: number, screenOverride: string | undefined): string {
+function routeLine(
+  route: RouteInfo,
+  depth: number,
+  screenOverride: string | undefined,
+  path: string,
+): string {
   const indent = '  '.repeat(depth);
-  const path = pathLabel(route);
   const screen = screenOverride ?? route.screenWidget;
   const screenPart = screen ? ` → ${screen}` : '';
   const guards = guardsPart(route);
   const name = route.name && route.name !== screen ? ` (${route.name})` : '';
   return `${indent}- ${path}${screenPart}${name} — ${route.file}:${String(route.line)}${guards}`;
+}
+
+/**
+ * A route's own path segment for top-down joining: `seg` is a joinable path (a
+ * literal, or a const resolved from the index); `label` is a non-joinable display
+ * string (unresolved const shown verbatim, or a shell/path-less marker).
+ */
+function ownSegment(
+  route: RouteInfo,
+  consts: Map<string, string>,
+): { seg?: string; label?: string } {
+  if (route.path !== undefined) return { seg: route.path };
+  if (route.pathExpr) {
+    const resolved = consts.get(route.pathExpr) ?? consts.get(lastSegment(route.pathExpr));
+    return resolved !== undefined
+      ? { seg: resolved }
+      : { label: `${route.pathExpr} (unresolved const)` };
+  }
+  return { label: route.isShell ? '(shell — no path)' : '(no explicit path)' };
+}
+
+/** go_router join: an absolute child path wins; else parent + '/' + child. */
+function joinResolved(parent: string | undefined, seg: string): string {
+  if (seg.startsWith('/')) return seg;
+  const base = parent ?? '';
+  const joined = base.endsWith('/') ? base + seg : `${base}/${seg}`;
+  return joined.replace(/\/{2,}/g, '/');
 }
 
 /**
@@ -129,18 +179,36 @@ function autoRouteLine(
   route: RouteInfo,
   depth: number,
   resolvedScreen: string | undefined,
+  consts: Map<string, string>,
 ): string {
   const indent = '  '.repeat(depth);
   const ref = route.screenWidget ? ` → ${route.screenWidget}` : '';
   const screen = resolvedScreen ? ` → ${resolvedScreen}` : '';
-  return `${indent}- ${pathLabel(route)}${ref}${screen} — ${route.file}:${String(route.line)}${guardsPart(route)}`;
+  return `${indent}- ${pathLabel(route, consts)}${ref}${screen} — ${route.file}:${String(route.line)}${guardsPart(route)}`;
 }
 
-/** Path display, router-aware: go_router shells are path-less; auto_route may derive its path. */
-function pathLabel(route: RouteInfo): string {
+/**
+ * Path display, router-aware. Literal paths win; a const reference is resolved
+ * from the indexed string consts (qualified `RoutePaths.home`, else bare `home`)
+ * and shown verbatim + "(unresolved const)" when it can't be. A genuine shell is
+ * labelled as such; a path-less non-shell route is honestly "(no explicit path)"
+ * rather than mislabelled a shell.
+ */
+function pathLabel(route: RouteInfo, consts: Map<string, string>): string {
   if (route.fullPath) return route.fullPath;
   if (route.path) return route.path;
-  return route.router === 'go_router' ? '(shell — no path)' : '(no explicit path)';
+  if (route.pathExpr) {
+    const resolved = consts.get(route.pathExpr) ?? consts.get(lastSegment(route.pathExpr));
+    return resolved ?? `${route.pathExpr} (unresolved const)`;
+  }
+  if (route.isShell) return '(shell — no path)';
+  return '(no explicit path)';
+}
+
+/** `RoutePaths.home` → `home`; a bare ref is returned unchanged. */
+function lastSegment(ref: string): string {
+  const parts = ref.split('.');
+  return parts[parts.length - 1] ?? ref;
 }
 
 function guardsPart(route: RouteInfo): string {
@@ -153,7 +221,12 @@ function guardsPart(route: RouteInfo): string {
  * hand-written entry of the same name; generated routes with no hand-written
  * counterpart are listed as the fallback table.
  */
-function renderAutoRoute(auto: RouteInfo[], index: ProjectIndex, out: string[]): void {
+function renderAutoRoute(
+  auto: RouteInfo[],
+  index: ProjectIndex,
+  consts: Map<string, string>,
+  out: string[],
+): void {
   if (auto.length === 0) return;
   const generated = auto.filter((r) => isGenerated(index, r));
   const handwritten = auto.filter((r) => !isGenerated(index, r));
@@ -168,12 +241,12 @@ function renderAutoRoute(auto: RouteInfo[], index: ProjectIndex, out: string[]):
     out.push('## auto_route');
     const handwrittenNames = new Set<string>();
     for (const r of handwritten) collectNames(r, handwrittenNames);
-    for (const route of handwritten) renderAutoSubtree(route, 0, screenByName, out);
+    for (const route of handwritten) renderAutoSubtree(route, 0, screenByName, consts, out);
 
     const orphanGenerated = generated.filter((g) => !g.name || !handwrittenNames.has(g.name));
     if (orphanGenerated.length > 0) {
       out.push('### Generated-only pages (in *.gr.dart, absent from the hand-written table)');
-      for (const g of orphanGenerated) out.push(routeLine(g, 0, undefined));
+      for (const g of orphanGenerated) out.push(routeLine(g, 0, undefined, pathLabel(g, consts)));
     }
     out.push('');
     return;
@@ -181,7 +254,7 @@ function renderAutoRoute(auto: RouteInfo[], index: ProjectIndex, out: string[]):
 
   // Fallback: only the generated table exists (§7.4).
   out.push('## auto_route (from generated *.gr.dart — no hand-written table indexed)');
-  for (const route of generated) renderRoute(route, 0, undefined, out);
+  for (const route of generated) renderRoute(route, 0, undefined, consts, undefined, out);
   out.push('');
 }
 
@@ -190,11 +263,13 @@ function renderAutoSubtree(
   route: RouteInfo,
   depth: number,
   screenByName: Map<string, string>,
+  consts: Map<string, string>,
   out: string[],
 ): void {
   const resolved = route.screenWidget ? screenByName.get(route.screenWidget) : undefined;
-  out.push(autoRouteLine(route, depth, resolved));
-  for (const child of route.children) renderAutoSubtree(child, depth + 1, screenByName, out);
+  out.push(autoRouteLine(route, depth, resolved, consts));
+  for (const child of route.children)
+    renderAutoSubtree(child, depth + 1, screenByName, consts, out);
 }
 
 function collectNames(route: RouteInfo, into: Set<string>): void {

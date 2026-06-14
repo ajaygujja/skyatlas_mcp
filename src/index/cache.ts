@@ -16,7 +16,8 @@ import { logger } from '../shared/logger.js';
 // v3: FileEntry.blocs + FileEntry.edges added (Phase 3b).
 // v4: FileEntry.providers added; edges now include watchesProvider (Phase 3c).
 // v5: FileEntry.routes + dynamicRoutes added (Phase 3d).
-const CACHE_VERSION = 5;
+// v6: FileEntry.stringConsts added; RouteInfo gains pathExpr/isShell (path-const resolution).
+const CACHE_VERSION = 6;
 
 interface CacheFile {
   version: number;

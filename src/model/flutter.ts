@@ -133,6 +133,15 @@ export interface RouteInfo {
   router: RouterKind;
   /** Path as written (go_router), or auto_route's explicit `path:`. Absent for shells / derived paths. */
   path?: string;
+  /**
+   * Verbatim path reference when `path:` is not a string literal but a const
+   * (`path: RoutePaths.home` → "RoutePaths.home"). The value is resolved against
+   * the indexed string consts at display time (get_route_graph), falling back to
+   * this raw text labelled "(unresolved const)". Never both `path` and `pathExpr`.
+   */
+  pathExpr?: string;
+  /** True for ShellRoute/StatefulShellRoute — path-less by design, not a missing path. */
+  isShell?: boolean;
   /** Route name: go_router `name:`, or the auto_route page class (`HomeRoute`). */
   name?: string;
   /** Computed from nesting: parent fullPath joined with own path. Absent when a path is. */

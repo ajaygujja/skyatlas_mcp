@@ -39,6 +39,7 @@ describe('extractRoutes', () => {
     const shell = routes.find((r) => r.screenWidget === 'ScaffoldShell');
     expect(shell?.path).toBeUndefined();
     expect(shell?.fullPath).toBeUndefined();
+    expect(shell?.isShell).toBe(true);
     // Absolute child paths survive the shell unchanged.
     expect(shell?.children.map((c) => c.fullPath)).toEqual(['/profile', '/profile/edit']);
   });
@@ -48,6 +49,26 @@ describe('extractRoutes', () => {
     const profile = routes.flatMap((r) => r.children).find((r) => r.path === '/profile');
     expect(profile?.screenWidget).toBe('ProfilePage');
     expect(profile?.guards).toEqual(['authGuard']);
+  });
+
+  it('resolves a guarded pageBuilder to the real screen, not the early-return guard', async () => {
+    const { routes } = await extractFixture('const_paths_guarded.dart');
+    const detail = routes.find((r) => r.pathExpr === 'RoutePaths.detail');
+    // The null-guard `return ErrorPage()` precedes the real return — the last
+    // top-level return wins, so the screen is the detail screen, not ErrorPage.
+    expect(detail?.screenWidget).toBe('WorkLogDetailScreen');
+    expect(detail?.children[0]?.screenWidget).toBe('WorkLogEditScreen');
+  });
+
+  it('captures a const path reference verbatim as pathExpr (literal path left untouched)', async () => {
+    const { routes } = await extractFixture('const_paths_guarded.dart');
+    const home = routes.find((r) => r.screenWidget === 'HomeScreen');
+    expect(home?.pathExpr).toBe('RoutePaths.home');
+    expect(home?.path).toBeUndefined();
+    // A real string-literal path still lands in `path`, never `pathExpr`.
+    const { routes: go } = await extractFixture('go_router_app.dart');
+    const settings = go[0]?.children.find((r) => r.path === 'settings');
+    expect(settings?.pathExpr).toBeUndefined();
   });
 
   it('flattens StatefulShellRoute branches into children', async () => {
