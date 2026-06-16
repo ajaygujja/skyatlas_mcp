@@ -58,7 +58,7 @@ interface IgnoreScope {
 // Exported so the Phase 4 watcher prunes the exact same subtrees from chokidar.
 export const HARD_SKIP_DIRS = new Set([
   '.git',
-  '.flutter-intel',
+  '.skyatlas',
   '.dart_tool',
   'build',
   'node_modules',

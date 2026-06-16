@@ -33,7 +33,7 @@ async function main(): Promise<void> {
   const asJson = args.includes('--json');
 
   if (args.includes('--cold')) {
-    rmSync(join(workspace, '.flutter-intel'), { recursive: true, force: true });
+    rmSync(join(workspace, '.skyatlas'), { recursive: true, force: true });
   }
 
   const { index, stats } = await buildIndex(workspace);
@@ -68,7 +68,7 @@ async function main(): Promise<void> {
   }
 
   const out = process.stdout;
-  out.write(`\nflutter-intel doctor — ${workspace}\n`);
+  out.write(`\nskyatlas doctor — ${workspace}\n`);
   out.write(`${'─'.repeat(60)}\n`);
   out.write(`packages       ${String(stats.packageCount)}\n`);
   out.write(`dart files     ${String(stats.fileCount)}\n`);

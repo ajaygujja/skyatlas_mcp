@@ -1,4 +1,4 @@
-# flutter-intel-mcp
+# skyatlas_mcp
 
 **A Flutter-aware repo map for Claude and Cursor — it complements the official Dart MCP server.**
 
@@ -35,8 +35,8 @@ It is **read-only**, runs **entirely on your machine**, and makes **no network c
 ### 1. Build from a clone
 
 ```bash
-git clone <repo-url> flutter-code-intel
-cd flutter-code-intel
+git clone <repo-url> skyatlas_mcp
+cd skyatlas_mcp
 pnpm install
 pnpm build          # emits dist/ ; the WASM grammar is already vendored under vendor/
 ```
@@ -51,10 +51,10 @@ want mapped (not the path to this server).
 
 ```bash
 # Available in every project on this machine:
-claude mcp add flutter-intel -- node /abs/path/to/flutter-code-intel/dist/server.js /abs/path/to/your-flutter-repo
+claude mcp add skyatlas -- node /abs/path/to/skyatlas_mcp/dist/server.js /abs/path/to/your-flutter-repo
 
 # Or scoped to the current repo only (writes .mcp.json in the repo, shareable with teammates):
-claude mcp add flutter-intel -s project -- node /abs/path/to/flutter-code-intel/dist/server.js .
+claude mcp add skyatlas -s project -- node /abs/path/to/skyatlas_mcp/dist/server.js .
 ```
 
 ### 3. Register with Cursor
@@ -64,9 +64,9 @@ Add to `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (per-project):
 ```json
 {
   "mcpServers": {
-    "flutter-intel": {
+    "skyatlas": {
       "command": "node",
-      "args": ["/abs/path/to/flutter-code-intel/dist/server.js", "/abs/path/to/your-flutter-repo"]
+      "args": ["/abs/path/to/skyatlas_mcp/dist/server.js", "/abs/path/to/your-flutter-repo"]
     }
   }
 }
@@ -74,11 +74,11 @@ Add to `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (per-project):
 
 ### 4. Gitignore the cache in the _target_ repo
 
-The server writes a warm-start cache to `.flutter-intel/cache.json` **inside the repo it indexes**.
+The server writes a warm-start cache to `.skyatlas/cache.json` **inside the repo it indexes**.
 Add this to that repo's `.gitignore`:
 
 ```gitignore
-.flutter-intel/
+.skyatlas/
 ```
 
 ---
@@ -116,7 +116,7 @@ the exact `file:line` to the Dart server (or your editor) for resolved semantics
 
 ```bash
 claude mcp add dart -- dart mcp-server          # the microscope (Dart SDK ≥ 3.9)
-claude mcp add flutter-intel -- node /abs/path/to/flutter-code-intel/dist/server.js /abs/path/to/your-flutter-repo
+claude mcp add skyatlas -- node /abs/path/to/skyatlas_mcp/dist/server.js /abs/path/to/your-flutter-repo
 ```
 
 ---
@@ -129,9 +129,9 @@ instead of grepping, paste this into the **target repo's `CLAUDE.md`**:
 ```markdown
 ## Repo navigation
 
-This repo has a `flutter-intel` MCP server providing a structural map.
+This repo has a `skyatlas` MCP server providing a structural map.
 For any question about repo structure — routes, widget trees, which Bloc/Provider
-serves a screen, where a symbol is defined, project layout — call the flutter-intel
+serves a screen, where a symbol is defined, project layout — call the skyatlas
 tools FIRST, before grepping or opening files:
 
 - `get_project_map` to orient (call it once at the start of a session)
@@ -149,7 +149,7 @@ tools return nothing. Use the official Dart MCP server for resolved types / find
 ```bash
 # 1. The server is connected:
 claude mcp list
-#    → flutter-intel ... ✓ Connected
+#    → skyatlas ... ✓ Connected
 
 # 2. A tool returns real data (from a Claude chat in the target repo):
 #    "Call get_project_map."
@@ -184,7 +184,7 @@ file re-indexes in well under 50 ms, with no restart.
 ## Security & privacy
 
 - **Read-only.** The server never writes to your source. Its only write is the warm-start cache
-  under `.flutter-intel/` in the indexed repo.
+  under `.skyatlas/` in the indexed repo.
 - **Workspace-scoped.** It reads only `.dart` files under the workspace root passed as `argv[2]`.
 - **No network at runtime.** No telemetry, no remote calls, no code upload. The parser is local
   WASM; everything stays in-process. _Your code never leaves the machine._
@@ -196,7 +196,7 @@ file re-indexes in well under 50 ms, with no restart.
 - **Not connected / exits immediately** — confirm `pnpm build` ran (`dist/server.js` must exist)
   and that `argv[2]` is the absolute path to a real directory. Startup logs go to **stderr**
   (stdout is reserved for the MCP protocol).
-- **Logging.** Set `FLUTTER_INTEL_LOG=debug|info|warn|error` (default `info`) to control verbosity.
+- **Logging.** Set `SKYATLAS_LOG=debug|info|warn|error` (default `info`) to control verbosity.
   All logs are structured JSON on stderr.
 - **A file shows a syntax error in the health line** — that's a parse error localized to one file
   (often new Dart syntax the pinned grammar doesn't yet cover); the rest of the repo still indexes.

@@ -1,10 +1,10 @@
 {
-  "name": "flutter-intel-mcp",
+  "name": "skyatlas_mcp",
   "version": "0.1.0",
   "description": "Flutter-aware whole-repo structural intelligence for AI assistants, over MCP",
   "type": "module",
   "bin": {
-    "flutter-intel-mcp": "dist/server.js"
+    "skyatlas_mcp": "dist/server.js"
   },
   "files": [
     "dist",

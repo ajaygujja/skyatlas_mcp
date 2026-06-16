@@ -24,7 +24,7 @@ describe('find_state_wiring (formatted response)', () => {
   }
 
   beforeAll(async () => {
-    root = await mkdtemp(join(tmpdir(), 'flutter-intel-wiring-'));
+    root = await mkdtemp(join(tmpdir(), 'skyatlas-wiring-'));
     await cp(WIRING_FIXTURES, root, { recursive: true });
     const { index } = await buildIndex(root);
     const server = createServer(() => Promise.resolve(index));

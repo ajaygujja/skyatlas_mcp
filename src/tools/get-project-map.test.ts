@@ -23,7 +23,7 @@ describe('get_project_map (index health)', () => {
   }
 
   beforeAll(async () => {
-    root = await mkdtemp(join(tmpdir(), 'flutter-intel-projmap-'));
+    root = await mkdtemp(join(tmpdir(), 'skyatlas-projmap-'));
     await cp(MINI_APP, root, { recursive: true });
     // A deliberately broken Dart file: tree-sitter localizes the ERROR node and
     // the rest of the repo still indexes. The health line must name this file.

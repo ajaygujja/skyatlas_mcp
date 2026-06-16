@@ -300,7 +300,7 @@ interface ProjectIndex {
 }
 ```
 
-Disk cache: `.flutter-intel/cache.json` in the workspace (gitignored), keyed by file content
+Disk cache: `.skyatlas/cache.json` in the workspace (gitignored), keyed by file content
 hash — warm start re-parses only changed files.
 
 ---
@@ -387,7 +387,7 @@ tests red.
 ### Phase 0 — Plumbing proof (target: 1 evening)
 - Scaffold: pnpm + TypeScript strict + ESLint + Prettier + Vitest; `src/` layer folders.
 - MCP server with one tool `ping` → `"pong"` via `@modelcontextprotocol/sdk` (`registerTool`, Zod schema, stdio transport).
-- Register in Claude Code (`claude mcp add flutter-intel -- node dist/server.js`), invoke ping from a chat.
+- Register in Claude Code (`claude mcp add skyatlas -- node dist/server.js`), invoke ping from a chat.
 - **Exit criterion:** pong arrives in Claude. The riskiest unknown (MCP plumbing) is dead first.
 
 ### Phase 1 — Parse one file (target: 1–2 evenings)
@@ -491,7 +491,7 @@ that gives the watcher its reusable primitives; 4b is the watcher itself.
   (ignore rules) also forces a full re-scan, which rebuilds the workspace filter. `// Decision:`
   for N=50 is in the source (comfortably above a hand-save, far below a branch switch).
 - Debounced disk-cache save (2 s, separate from the 200 ms event debounce) keeps
-  `.flutter-intel/cache.json` fresh for warm restarts; `close()` flushes a pending save. No
+  `.skyatlas/cache.json` fresh for warm restarts; `close()` flushes a pending save. No
   cache version bump — reuses the v5 `FileEntry` shape.
 - Wiring needs **no** invalidation: `computeWiring` runs per `find_state_wiring` call (§9.5
   lazy) and reads `index.edges` live; `setFile`/`removeFile` keep every map consistent atomically.
@@ -511,10 +511,10 @@ that gives the watcher its reusable primitives; 4b is the watcher itself.
 - **Exit criterion (met):** edit a route file, ask `get_route_graph`, see the change without restart; single-file update < 50 ms.
 
 ### Phase 5 — Hardening & team rollout ✅ **code complete (2026-06-13)**
-- Structured logging to stderr with a validated `FLUTTER_INTEL_LOG=debug|info|warn|error` level (default `info`; an invalid value falls back to `info` rather than disabling the filter). A guard test (`src/shared/logger.test.ts`) scans production `src/` and fails the build on any `console.*`/`process.stdout` — stdout stays the exclusive MCP channel (Working Rule 7).
+- Structured logging to stderr with a validated `SKYATLAS_LOG=debug|info|warn|error` level (default `info`; an invalid value falls back to `info` rather than disabling the filter). A guard test (`src/shared/logger.test.ts`) scans production `src/` and fails the build on any `console.*`/`process.stdout` — stdout stays the exclusive MCP channel (Working Rule 7).
 - Graceful degradation: parse error in one file → logged, skipped, index continues. `get_project_map` surfaces an index-health line naming the broken files; an in-memory MCP test (`src/tools/get-project-map.test.ts`) pins it against a deliberately broken `.dart`. A broken file yields `parseErrors` (localized ERROR node), not an index failure.
 - Packaging (publish-ready, not published): `package.json` `"files"` ships only `dist/` + the vendored `.wasm` + `GRAMMAR_VERSION`; `npm pack` = 59 files, ~195 KB packed (no src/fixtures/test leaks). `node dist/server.js <repo>` boots from a clean checkout, resolves the wasm by `import.meta.url` abs path, and writes nothing to stdout pre-handshake. Cold local boot is sub-second; the §11.3 <15 s budget is the one-time `npx -y` download.
-- README (the exit criterion): pitch, Node ≥ 20 + grammar version, Claude Code (`claude mcp add … node dist/server.js <repo>`, `-s project`) + Cursor install, `.flutter-intel/` gitignore note, the six tools with per-tool "ask Claude X", run-alongside-the-Dart-MCP-server, a paste-in `CLAUDE.md` navigation directive (§12), verify-it-works, and the security/privacy guarantees (§9.7). `LICENSE` (MIT) + `CONTRIBUTING.md` (dogfood ladder) added.
+- README (the exit criterion): pitch, Node ≥ 20 + grammar version, Claude Code (`claude mcp add … node dist/server.js <repo>`, `-s project`) + Cursor install, `.skyatlas/` gitignore note, the six tools with per-tool "ask Claude X", run-alongside-the-Dart-MCP-server, a paste-in `CLAUDE.md` navigation directive (§12), verify-it-works, and the security/privacy guarantees (§9.7). `LICENSE` (MIT) + `CONTRIBUTING.md` (dogfood ladder) added.
 - **Exit criterion (code):** a teammate installs from README alone. The human dogfood ladder (you → 2 teammates → whole team) is the remaining non-code rollout step, captured in `CONTRIBUTING.md`. Every wrong answer becomes a fixture before it becomes a fix.
 
 ### Future features (explicitly deferred — design supports them; do NOT build in v1)
@@ -590,7 +590,7 @@ Roughly in expected-value order. Ship v1 first; let real team usage pick what's 
 
 ### 9.7 Security & privacy
 - Read-only filesystem access scoped to the workspace root passed at startup; refuse paths outside it.
-- No network calls at runtime. No telemetry in v1. Cache stays inside the workspace (`.flutter-intel/`, gitignored).
+- No network calls at runtime. No telemetry in v1. Cache stays inside the workspace (`.skyatlas/`, gitignored).
 - This matters explicitly for enterprise adoption: the pitch includes "your code never leaves the machine."
 
 ---
@@ -614,7 +614,7 @@ Roughly in expected-value order. Ship v1 first; let real team usage pick what's 
 
 ### 11.1 Private first (team rollout, Phase 5)
 
-- Internal git clone + `claude mcp add flutter-intel -- node /abs/path/dist/server.js`
+- Internal git clone + `claude mcp add skyatlas -- node /abs/path/dist/server.js`
   (or a private npm registry if the company has one). No public exposure while dogfooding.
 - Enterprise fixtures stay in a **private overlay** (`fixtures/enterprise/`, separate private
   repo or gitignored) — they must never reach the public repo (see §12, legal risk).
@@ -624,7 +624,7 @@ Roughly in expected-value order. Ship v1 first; let real team usage pick what's 
 1. **npm registry** — package name reserved early; publish with `bin` entry so users run it
    without installing:
    ```bash
-   claude mcp add flutter-intel -- npx -y flutter-intel-mcp
+   claude mcp add skyatlas -- npx -y skyatlas_mcp
    ```
    That one line is the entire install story. The WASM parser choice (§4.3) is what makes this
    work first-try on macOS/Windows/Linux/ARM — protect that property in every dependency decision.

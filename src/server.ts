@@ -15,7 +15,7 @@ import { registerGetRouteGraph } from './tools/get-route-graph.js';
 import { registerFindStateWiring } from './tools/find-state-wiring.js';
 import { logger } from './shared/logger.js';
 
-const SERVER_NAME = 'flutter-intel';
+const SERVER_NAME = 'skyatlas';
 const SERVER_VERSION = '0.1.0';
 
 export function createServer(getIndex: () => Promise<ProjectIndex>): McpServer {

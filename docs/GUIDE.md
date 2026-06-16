@@ -1,4 +1,4 @@
-# Using, Verifying & Improving flutter-intel-mcp
+# Using, Verifying & Improving skyatlas_mcp
 
 A complete guide to running this server against a real Flutter project, proving it
 actually works, understanding when it doesn't, sharing it with a team, and making it
@@ -31,7 +31,7 @@ they appear, and there is a [glossary](#glossary) at the end.
 
 ## 1. What this server actually is
 
-`flutter-intel-mcp` is a small program that **reads your Dart/Flutter code and answers
+`skyatlas_mcp` is a small program that **reads your Dart/Flutter code and answers
 questions about its structure** — where things are defined, how routes nest, which Bloc
 or Provider wires to which screen, what a widget tree looks like.
 
@@ -49,7 +49,7 @@ instead of the assistant having to grep and open ten files to find out.
 
 There are two complementary tools in the Flutter MCP world:
 
-| | **flutter-intel-mcp** (this) | **Official Dart MCP server** |
+| | **skyatlas_mcp** (this) | **Official Dart MCP server** |
 |---|---|---|
 | Role | The **map** — whole-repo structure | The **microscope** — one symbol in depth |
 | Speed | Fast, always-on, syntactic | Slower, semantic (full type resolution) |
@@ -96,19 +96,19 @@ repo you want mapped.
 
 ```bash
 # 1. Build the server (do this once, inside THIS repo).
-cd /abs/path/to/flutter-code-intel
+cd /abs/path/to/skyatlas_mcp
 pnpm install
 pnpm build                     # produces dist/server.js
 
 # 2. Register it against YOUR Flutter app.
 #    The path at the END is the Flutter project to index — NOT this repo.
-claude mcp add flutter-intel -- node /abs/path/to/flutter-code-intel/dist/server.js /abs/path/to/your-flutter-app
+claude mcp add skyatlas -- node /abs/path/to/skyatlas_mcp/dist/server.js /abs/path/to/your-flutter-app
 ```
 
 Then, in an AI chat opened inside your Flutter app, say *"Call get_project_map."* You
 should get a map listing packages, folder counts, and the detected stack.
 
-> **Tip:** add `.flutter-intel/` to your Flutter app's `.gitignore`. The server writes a
+> **Tip:** add `.skyatlas/` to your Flutter app's `.gitignore`. The server writes a
 > warm-start cache there; it should not be committed.
 
 ### Choosing a scope (where the tools show up)
@@ -127,26 +127,26 @@ anywhere else and the tools are absent — even though `claude mcp get` still re
 
 ```bash
 # Recommended: available in every directory, private to you.
-claude mcp add -s user flutter-intel -- node /abs/path/to/flutter-code-intel/dist/server.js /abs/path/to/your-flutter-app
+claude mcp add -s user skyatlas -- node /abs/path/to/skyatlas_mcp/dist/server.js /abs/path/to/your-flutter-app
 
 # Shared with the team (writes .mcp.json in the current repo — commit it).
 # The trailing "." indexes the repo you run this in.
-claude mcp add -s project flutter-intel -- node /abs/path/to/flutter-code-intel/dist/server.js .
+claude mcp add -s project skyatlas -- node /abs/path/to/skyatlas_mcp/dist/server.js .
 
 # Default local scope — only works when you launch the client from this exact directory.
-claude mcp add flutter-intel -- node /abs/path/to/flutter-code-intel/dist/server.js /abs/path/to/your-flutter-app
+claude mcp add skyatlas -- node /abs/path/to/skyatlas_mcp/dist/server.js /abs/path/to/your-flutter-app
 ```
 
 > **Switching scope?** Remove the old registration first, then re-add — `add` refuses a
-> duplicate name (`MCP server flutter-intel already exists`):
+> duplicate name (`MCP server skyatlas already exists`):
 > ```bash
-> claude mcp remove flutter-intel
-> claude mcp add -s user flutter-intel -- node /abs/path/to/flutter-code-intel/dist/server.js /abs/path/to/your-flutter-app
+> claude mcp remove skyatlas
+> claude mcp add -s user skyatlas -- node /abs/path/to/skyatlas_mcp/dist/server.js /abs/path/to/your-flutter-app
 > ```
 
 > **Restart after adding.** MCP servers load at session **start**. If you added the
 > server mid-session the tools won't appear until you restart the client (or it can't see
-> the new scope). Run `/mcp` to confirm `flutter-intel` is listed with its tools.
+> the new scope). Run `/mcp` to confirm `skyatlas` is listed with its tools.
 
 ---
 
@@ -158,14 +158,14 @@ actually care about.
 ### a) Is it connected? (status)
 ```bash
 claude mcp list
-# → flutter-intel … ✓ Connected
+# → skyatlas … ✓ Connected
 ```
 This proves the client can launch the process and complete the MCP handshake.
 
 ### b) Did it parse my whole project? (coverage)
 This is the important one, and the reason `doctor` exists:
 ```bash
-pnpm -C /abs/path/to/flutter-code-intel doctor -- /abs/path/to/your-flutter-app --cold
+pnpm -C /abs/path/to/skyatlas_mcp doctor -- /abs/path/to/your-flutter-app --cold
 ```
 > **Note the `--`.** When you pass flags like `--cold` or `--json`, put a `--` before the
 > arguments so `pnpm` forwards them to the script instead of trying to interpret them as its
@@ -194,7 +194,7 @@ deleting the cache folder when you pass `--cold`).
 ### Running it from inside this repo
 
 ```bash
-cd /abs/path/to/flutter-code-intel
+cd /abs/path/to/skyatlas_mcp
 pnpm doctor /abs/path/to/your-flutter-app            # warm: reuse cache if present
 pnpm doctor /abs/path/to/your-flutter-app --cold     # nuke cache, full fresh re-parse
 pnpm doctor /abs/path/to/your-flutter-app --json     # machine-readable (for CI/sharing)
@@ -210,7 +210,7 @@ when your terminal is sitting inside your Flutter app you point `pnpm` at this r
 # You are here:  cd /Users/you/dev/my-flutter-app
 
 # Set this once per shell so the commands below stay short:
-export FI=/abs/path/to/flutter-code-intel
+export FI=/abs/path/to/skyatlas_mcp
 
 # Human report on the project you're standing in (no flags → no `--` needed):
 pnpm -C "$FI" doctor "$(pwd)"
@@ -233,7 +233,7 @@ about the Flutter project you're standing in, regardless of where the server liv
 > **Even shorter (optional):** add a shell alias to your `~/.zshrc` — bake the `--` in so you
 > never think about it:
 > ```bash
-> alias fidoctor='pnpm -C /abs/path/to/flutter-code-intel doctor --'
+> alias fidoctor='pnpm -C /abs/path/to/skyatlas_mcp doctor --'
 > ```
 > Then from any Flutter project: `fidoctor "$(pwd)" --cold`.
 
@@ -242,7 +242,7 @@ about the Flutter project you're standing in, regardless of where the server liv
 The server logs startup info to **stderr** as JSON. To see only the report, lower the log
 level:
 ```bash
-FLUTTER_INTEL_LOG=warn pnpm -C "$FI" doctor -- "$(pwd)" --cold
+SKYATLAS_LOG=warn pnpm -C "$FI" doctor -- "$(pwd)" --cold
 ```
 
 ### Exit code (for CI)
@@ -260,7 +260,7 @@ pnpm -C "$FI" doctor -- "$(pwd)" --json || echo "parse coverage regressed"
 A human report looks like this:
 
 ```
-flutter-intel doctor — /Users/you/dev/my-flutter-app
+skyatlas doctor — /Users/you/dev/my-flutter-app
 ────────────────────────────────────────────────────────────
 packages       2
 dart files     415
@@ -393,7 +393,7 @@ Three levels, easiest to most polished.
 ### a) Per-repo, shared through Git
 Inside your Flutter app:
 ```bash
-claude mcp add flutter-intel -s project -- node /abs/path/to/flutter-code-intel/dist/server.js .
+claude mcp add skyatlas -s project -- node /abs/path/to/skyatlas_mcp/dist/server.js .
 ```
 This writes a `.mcp.json` file into the Flutter repo. Commit it; teammates who pull get the
 server auto-registered. **Caveat:** the `node …/dist/server.js` path must also exist on
@@ -404,11 +404,11 @@ their machine — so they still need this server built somewhere. That leads to 
 ```bash
 npm publish                       # public
 # or, for an internal org registry / scope:
-#   name it "@yourorg/flutter-intel-mcp" and: npm publish --access restricted
+#   name it "@yourorg/skyatlas_mcp" and: npm publish --access restricted
 ```
 Teammates then need **no clone and no build**:
 ```bash
-claude mcp add flutter-intel -- npx -y flutter-intel-mcp /abs/path/to/their-flutter-app
+claude mcp add skyatlas -- npx -y skyatlas_mcp /abs/path/to/their-flutter-app
 ```
 `npx` downloads and runs it on demand.
 
@@ -474,7 +474,7 @@ If you are an AI assistant working in a repo that has this server registered:
 
 ## 12. Command cheat-sheet
 
-Assume `export FI=/abs/path/to/flutter-code-intel` and that you are standing in your
+Assume `export FI=/abs/path/to/skyatlas_mcp` and that you are standing in your
 Flutter project (`cd /your/flutter/app`).
 
 ```bash
@@ -483,8 +483,8 @@ pnpm -C "$FI" install
 pnpm -C "$FI" build
 
 # ── Register with an AI client ─────────────────────────────
-claude mcp add flutter-intel -- node "$FI/dist/server.js" "$(pwd)"     # machine-wide
-claude mcp add flutter-intel -s project -- node "$FI/dist/server.js" . # this repo, shareable
+claude mcp add skyatlas -- node "$FI/dist/server.js" "$(pwd)"     # machine-wide
+claude mcp add skyatlas -s project -- node "$FI/dist/server.js" . # this repo, shareable
 claude mcp list                                                        # is it connected?
 
 # ── Verify parse coverage (no AI client needed) ────────────
@@ -492,7 +492,7 @@ claude mcp list                                                        # is it c
 pnpm -C "$FI" doctor "$(pwd)"                     # warm human report (no flags → no --)
 pnpm -C "$FI" doctor -- "$(pwd)" --cold          # full fresh re-parse
 pnpm -C "$FI" doctor -- "$(pwd)" --json          # machine-readable (CI / sharing)
-FLUTTER_INTEL_LOG=warn pnpm -C "$FI" doctor -- "$(pwd)" --cold   # quiet logs
+SKYATLAS_LOG=warn pnpm -C "$FI" doctor -- "$(pwd)" --cold   # quiet logs
 
 # ── Investigate a failing file ─────────────────────────────
 pnpm -C "$FI" dump-tree -- /abs/path/to/file.dart | grep -n ERROR
@@ -524,7 +524,7 @@ pnpm -C "$FI" test
   features sometimes need a newer grammar.
 - **Fixture** — a small sample file used in tests to prove the parser handles a given
   syntax.
-- **Warm-start cache** — `.flutter-intel/cache.json` inside the indexed repo; lets a
+- **Warm-start cache** — `.skyatlas/cache.json` inside the indexed repo; lets a
   restart skip re-parsing unchanged files. Safe to delete (`--cold` does).
 - **Cold vs warm** — *cold* = ignore the cache and parse everything; *warm* = reuse the
   cache for unchanged files (faster).

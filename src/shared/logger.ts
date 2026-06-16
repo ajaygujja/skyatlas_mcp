@@ -11,13 +11,13 @@ export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 const LEVEL_ORDER: Record<LogLevel, number> = { debug: 0, info: 1, warn: 2, error: 3 };
 
 /**
- * Threshold from `FLUTTER_INTEL_LOG` (debug|info|warn|error), default `info`.
+ * Threshold from `SKYATLAS_LOG` (debug|info|warn|error), default `info`.
  * An unset or unrecognized value falls back to `info` rather than silently
  * disabling the level filter — a bogus `minLevel` would make every comparison
  * NaN and leak debug noise. Resolved once at module load.
  */
 function resolveMinLevel(): LogLevel {
-  const raw = process.env['FLUTTER_INTEL_LOG']?.toLowerCase();
+  const raw = process.env['SKYATLAS_LOG']?.toLowerCase();
   return raw && raw in LEVEL_ORDER ? (raw as LogLevel) : 'info';
 }
 

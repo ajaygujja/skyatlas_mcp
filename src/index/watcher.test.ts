@@ -47,7 +47,7 @@ describe('startWatcher', () => {
   let waiter: BatchWaiter;
 
   beforeEach(async () => {
-    root = await mkdtemp(join(tmpdir(), 'flutter-intel-watch-'));
+    root = await mkdtemp(join(tmpdir(), 'skyatlas-watch-'));
     await cp(MINI_APP, root, { recursive: true });
     index = (await buildIndex(root)).index;
     waiter = new BatchWaiter();
@@ -152,7 +152,7 @@ describe('startWatcher', () => {
     await handle?.close();
     handle = undefined;
 
-    const raw = await readFile(join(root, '.flutter-intel', 'cache.json'), 'utf8');
+    const raw = await readFile(join(root, '.skyatlas', 'cache.json'), 'utf8');
     const parsed = JSON.parse(raw) as { files: Record<string, unknown> };
     expect(parsed.files['lib/cached_new.dart']).toBeDefined();
   });
@@ -182,7 +182,7 @@ describe('watcher freshness through get_route_graph', () => {
   }
 
   beforeEach(async () => {
-    root = await mkdtemp(join(tmpdir(), 'flutter-intel-watch-route-'));
+    root = await mkdtemp(join(tmpdir(), 'skyatlas-watch-route-'));
     await cp(MINI_APP, root, { recursive: true });
     const index = (await buildIndex(root)).index;
     const server = createServer(() => Promise.resolve(index));

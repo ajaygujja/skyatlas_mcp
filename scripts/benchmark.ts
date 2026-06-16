@@ -25,7 +25,7 @@ async function main(): Promise<void> {
   const workspace = resolve(root);
 
   if (args.includes('--cold')) {
-    rmSync(join(workspace, '.flutter-intel'), { recursive: true, force: true });
+    rmSync(join(workspace, '.skyatlas'), { recursive: true, force: true });
   }
 
   const { index, stats } = await buildIndex(workspace);

@@ -1,6 +1,6 @@
 /**
  * JSON disk cache, content-hash keyed (TECHNICAL_DESIGN.md §5.3): warm starts
- * re-parse only changed files. Lives at .flutter-intel/cache.json inside the
+ * re-parse only changed files. Lives at .skyatlas/cache.json inside the
  * workspace (gitignored; never leaves the machine, §9.7).
  *
  * A cache is an optimization, never a correctness dependency: any read or
@@ -25,7 +25,7 @@ interface CacheFile {
 }
 
 function cachePath(root: string): string {
-  return join(root, '.flutter-intel', 'cache.json');
+  return join(root, '.skyatlas', 'cache.json');
 }
 
 export async function loadCache(root: string): Promise<Map<string, FileEntry>> {

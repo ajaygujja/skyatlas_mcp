@@ -8,12 +8,12 @@ import { walkWorkspace, packageForFile, isGeneratedFile } from './workspace.js';
 
 const MINI_APP = fileURLToPath(new URL('../../fixtures/mini-app', import.meta.url));
 
-// Each test gets a disposable copy: buildIndex writes .flutter-intel/cache.json,
+// Each test gets a disposable copy: buildIndex writes .skyatlas/cache.json,
 // and tests mutate files — the checked-in fixture must stay pristine.
 let root: string;
 
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), 'flutter-intel-test-'));
+  root = await mkdtemp(join(tmpdir(), 'skyatlas-test-'));
   await cp(MINI_APP, root, { recursive: true });
 });
 

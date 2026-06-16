@@ -8,12 +8,12 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 // End-to-end MCP test (TECHNICAL_DESIGN.md §9.3): spawn the built server as a
 // subprocess against a disposable copy of the mini-app fixture, speak real
 // JSON-RPC over stdio, assert the formatted responses. Requires `pnpm build`.
-describe('flutter-intel MCP server (stdio E2E)', () => {
+describe('skyatlas MCP server (stdio E2E)', () => {
   const client = new Client({ name: 'e2e-test', version: '0.0.0' });
   let root: string;
 
   beforeAll(async () => {
-    root = await mkdtemp(path.join(tmpdir(), 'flutter-intel-e2e-'));
+    root = await mkdtemp(path.join(tmpdir(), 'skyatlas-e2e-'));
     await cp(path.resolve(import.meta.dirname, '../fixtures/mini-app'), root, {
       recursive: true,
     });
