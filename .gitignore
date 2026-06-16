@@ -1,8 +1,22 @@
+# dependencies & build output
 node_modules/
 dist/
 coverage/
+*.tsbuildinfo
+
+# runtime cache
 .skyatlas/
+
+# secrets / env
+.env
+.env.*
+
+# logs
 *.log
+npm-debug.log*
+
+# os & editor
 .DS_Store
 .claude
+.idea/
 
