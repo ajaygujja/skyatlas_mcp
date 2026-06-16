@@ -111,6 +111,43 @@ should get a map listing packages, folder counts, and the detected stack.
 > **Tip:** add `.flutter-intel/` to your Flutter app's `.gitignore`. The server writes a
 > warm-start cache there; it should not be committed.
 
+### Choosing a scope (where the tools show up)
+
+`claude mcp add` writes the registration to one of three scopes. The default is `local`,
+which is the most common reason the tools "connect" but never appear in a session: a
+`local` server is private to the **one directory you ran `add` in**. Run the client from
+anywhere else and the tools are absent — even though `claude mcp get` still reports
+`✓ Connected` (that only proves the process launches, not that *this* session loaded it).
+
+| Scope | Flag | Where tools appear | Stored in | Use when |
+|-------|------|--------------------|-----------|----------|
+| **user** | `-s user` | every project, every directory | `~/.claude.json` (global) | you want it always on, just for you |
+| **project** | `-s project` | anyone who opens this repo | `.mcp.json` in the repo (commit it) | sharing with teammates |
+| **local** *(default)* | *(none)* | only the dir you ran `add` in | `~/.claude.json` under that project | quick one-off, single repo |
+
+```bash
+# Recommended: available in every directory, private to you.
+claude mcp add -s user flutter-intel -- node /abs/path/to/flutter-code-intel/dist/server.js /abs/path/to/your-flutter-app
+
+# Shared with the team (writes .mcp.json in the current repo — commit it).
+# The trailing "." indexes the repo you run this in.
+claude mcp add -s project flutter-intel -- node /abs/path/to/flutter-code-intel/dist/server.js .
+
+# Default local scope — only works when you launch the client from this exact directory.
+claude mcp add flutter-intel -- node /abs/path/to/flutter-code-intel/dist/server.js /abs/path/to/your-flutter-app
+```
+
+> **Switching scope?** Remove the old registration first, then re-add — `add` refuses a
+> duplicate name (`MCP server flutter-intel already exists`):
+> ```bash
+> claude mcp remove flutter-intel
+> claude mcp add -s user flutter-intel -- node /abs/path/to/flutter-code-intel/dist/server.js /abs/path/to/your-flutter-app
+> ```
+
+> **Restart after adding.** MCP servers load at session **start**. If you added the
+> server mid-session the tools won't appear until you restart the client (or it can't see
+> the new scope). Run `/mcp` to confirm `flutter-intel` is listed with its tools.
+
 ---
 
 ## 5. The three health checks
