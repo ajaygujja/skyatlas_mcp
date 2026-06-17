@@ -248,6 +248,27 @@ function scanSequence(kids: readonly (Node | null)[], inBuilder: boolean, ctx: S
         out.push(...scanSequence(child.namedChildren, inBuilder, ctx));
         i++;
       }
+    } else if (child.type === 'if_element') {
+      // Collection-`if` (`if (cond) Widget()`): the child(ren) render only when
+      // the condition holds. Keep them, marked conditional — distinct from a
+      // plain static child (W4). The condition expression yields no widget.
+      for (const n of scanSequence(child.namedChildren, inBuilder, ctx)) {
+        n.conditional = true;
+        out.push(n);
+      }
+      i++;
+    } else if (child.type === 'spread_element') {
+      // Spread (`...widgets`): an opaque list reference whose element count and
+      // shape are runtime-dependent. Emit one honest marker, never silently
+      // drop it (W4).
+      const src = child.namedChildren.find((c) => c.type === 'identifier');
+      out.push({
+        widget: src ? `...${src.text}` : '...',
+        line: child.startPosition.row + 1,
+        namedSlots: {},
+        dynamic: 'spread',
+      });
+      i++;
     } else {
       // Wrapper node: descend. Entering a builder closure marks the first
       // construction found inside it as isBuilderCallback.

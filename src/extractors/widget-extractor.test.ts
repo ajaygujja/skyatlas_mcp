@@ -116,4 +116,18 @@ describe('extractWidgets', () => {
     expect(child?.dynamic).toBe('mapped');
     expect(child?.isBuilderCallback).toBeUndefined();
   });
+
+  it('marks a collection-`if` child conditional and a spread as dynamic', async () => {
+    const { tree } = await parseFile(resolve(FIXTURES, '../stress/widgets_hard.dart'));
+    const widgets = extractWidgets(tree, 'fixtures/stress/widgets_hard.dart');
+    const column = widgets.find((w) => w.name === 'CollectionIfChildren')?.buildTree?.[0];
+    const children = column?.namedSlots['children'] ?? [];
+    expect(children.map((c) => c.widget)).toEqual(['Header', 'Banner', '...footerWidgets', 'Footer']);
+    const banner = children.find((c) => c.widget === 'Banner');
+    expect(banner?.conditional).toBe(true);
+    // Plain siblings are not marked conditional.
+    expect(children.find((c) => c.widget === 'Header')?.conditional).toBeUndefined();
+    // The spread is surfaced as a dynamic marker, never silently dropped.
+    expect(children.find((c) => c.widget === '...footerWidgets')?.dynamic).toBe('spread');
+  });
 });
