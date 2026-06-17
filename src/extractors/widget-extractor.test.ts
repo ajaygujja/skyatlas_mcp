@@ -103,4 +103,17 @@ describe('extractWidgets', () => {
     expect(state?.flavor).toBe('state');
     expect(state?.buildTree?.[0]?.widget).toBe('Scaffold');
   });
+
+  it('labels a `.map` collection child dynamic (mapped), not a builder callback', async () => {
+    const { tree } = await parseFile(resolve(FIXTURES, '../basic/widget_tree_repro.dart'));
+    const widgets = extractWidgets(tree, 'fixtures/basic/widget_tree_repro.dart');
+    const row = widgets.find((w) => w.name === 'MappedChildrenField')?.buildTree?.[0];
+    expect(row?.widget).toBe('Row');
+    const child = row?.namedSlots['children']?.[0];
+    // items.map((i) => Expanded(...)).toList(): one representative element, marked
+    // as a dynamic collection — never a static child, never a builder slot.
+    expect(child?.widget).toBe('Expanded');
+    expect(child?.dynamic).toBe('mapped');
+    expect(child?.isBuilderCallback).toBeUndefined();
+  });
 });

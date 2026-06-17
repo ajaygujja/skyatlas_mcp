@@ -30,6 +30,13 @@ interface ScanCtx {
   expanding: Set<string>;
 }
 
+/**
+ * Iterable transforms whose closure produces children dynamically. The static
+ * tree shows one representative element labelled `dynamic (mapped)`, never an
+ * enumerable list — the runtime count is not statically knowable.
+ */
+const COLLECTION_TRANSFORMS = new Set(['map', 'where', 'expand']);
+
 /** Known widget base classes → flavor. Anything else ending in `Widget` is `unknownWidgetSubclass`. */
 const FLAVOR_BY_SUPERCLASS: Record<string, WidgetFlavor> = {
   StatelessWidget: 'stateless',
@@ -223,6 +230,24 @@ function scanSequence(kids: readonly (Node | null)[], inBuilder: boolean, ctx: S
       const r = recoverGeneric(kids, i, inBuilder, ctx);
       if (r.node) out.push(r.node);
       i = Math.max(r.next, i + 1);
+    } else if (child.type === 'selector' && isCollectionTransform(child)) {
+      // `.map`/`.where`/`.expand`: a dynamic transform, not a builder slot.
+      // Emit one representative child labelled `dynamic (mapped)` and consume
+      // the call's argument selector so its closure is not re-scanned as a
+      // builder (the closure is a mapper, not a `builder:` callback — N2).
+      const argSel = kids[i + 1];
+      const closure = argSel?.type === 'selector' ? closureOf(argSel) : undefined;
+      if (closure) {
+        const rep = scanSequence(closure.namedChildren, false, ctx)[0];
+        if (rep) {
+          rep.dynamic = 'mapped';
+          out.push(rep);
+        }
+        i += 2;
+      } else {
+        out.push(...scanSequence(child.namedChildren, inBuilder, ctx));
+        i++;
+      }
     } else {
       // Wrapper node: descend. Entering a builder closure marks the first
       // construction found inside it as isBuilderCallback.
@@ -511,6 +536,28 @@ function parseTypeArgs(parent: Node): string[] | undefined {
   if (!ta) return undefined;
   const args = parseTypeArgList(ta);
   return args.length > 0 ? args : undefined;
+}
+
+/** A `.map` / `.where` / `.expand` call selector (`unconditional_assignable_selector`). */
+function isCollectionTransform(selector: Node): boolean {
+  const inner = selector.namedChildren[0];
+  if (inner?.type !== 'unconditional_assignable_selector') return false;
+  const id = inner.namedChildren.find((c) => c.type === 'identifier');
+  return id !== undefined && COLLECTION_TRANSFORMS.has(id.text);
+}
+
+/**
+ * The `function_expression` argument of a call selector, reached via
+ * `selector → argument_part → arguments → argument → function_expression`.
+ * Undefined for a tear-off argument (`.map(buildTile)`), where no closure body
+ * is statically visible.
+ */
+function closureOf(argSelector: Node): Node | undefined {
+  const argPart = argSelector.namedChildren[0];
+  if (argPart?.type !== 'argument_part') return undefined;
+  const args = argPart.namedChildren.find((c) => c.type === 'arguments');
+  const arg = args?.namedChildren.find((c) => c.type === 'argument');
+  return arg?.namedChildren.find((c) => c.type === 'function_expression');
 }
 
 function isMisparsedGeneric(n: Node): boolean {
