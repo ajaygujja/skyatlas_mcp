@@ -20,6 +20,7 @@
  */
 import type { Node, Tree } from 'web-tree-sitter';
 import type { Edge, ProviderInfo } from '../model/flutter.js';
+import { parseTypeArgList } from './dart-idioms.js';
 
 export interface ProviderExtraction {
   providers: ProviderInfo[];
@@ -231,9 +232,7 @@ function refWatchTarget(methodSel: Node): string | undefined {
   return lead?.type === 'identifier' ? lead.text : undefined;
 }
 
-/** `(type_arguments (type_identifier|identifier)+)` → verbatim arg texts. */
+/** `(type_arguments …)` → verbatim arg texts, nested generics preserved. */
 function typeArgTexts(typeArguments: Node): string[] {
-  return typeArguments.namedChildren
-    .filter((c) => c.type === 'type_identifier' || c.type === 'identifier')
-    .map((c) => c.text);
+  return parseTypeArgList(typeArguments);
 }

@@ -1788,3 +1788,701 @@ exports[`extractSymbols > matches snapshot: user_model.dart 1`] = `
   ],
 }
 `;
+
+exports[`extractSymbols > matches snapshot: widget_tree_repro.dart 1`] = `
+{
+  "parseErrors": [],
+  "symbols": [
+    {
+      "annotations": [],
+      "children": [
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/widget_tree_repro.dart",
+          "id": "fixtures/basic/widget_tree_repro.dart#ControlCard.ControlCard",
+          "kind": "constructor",
+          "modifiers": [
+            "const",
+          ],
+          "name": "ControlCard",
+          "nameRange": {
+            "col": 9,
+            "line": 9,
+          },
+          "parameters": [
+            {
+              "name": "key",
+              "named": true,
+              "required": false,
+            },
+          ],
+          "parentId": "fixtures/basic/widget_tree_repro.dart#ControlCard",
+          "qualifiedName": "ControlCard.ControlCard",
+          "range": {
+            "endLine": 9,
+            "startLine": 9,
+          },
+        },
+        {
+          "annotations": [
+            {
+              "name": "override",
+            },
+          ],
+          "children": [],
+          "file": "fixtures/basic/widget_tree_repro.dart",
+          "id": "fixtures/basic/widget_tree_repro.dart#ControlCard.build",
+          "kind": "method",
+          "modifiers": [],
+          "name": "build",
+          "nameRange": {
+            "col": 10,
+            "line": 12,
+          },
+          "parameters": [
+            {
+              "name": "context",
+              "named": false,
+              "required": true,
+              "type": "BuildContext",
+            },
+          ],
+          "parentId": "fixtures/basic/widget_tree_repro.dart#ControlCard",
+          "qualifiedName": "ControlCard.build",
+          "range": {
+            "endLine": 24,
+            "startLine": 12,
+          },
+          "returnType": "Widget",
+        },
+      ],
+      "extendsType": {
+        "name": "StatelessWidget",
+        "typeArgs": [],
+      },
+      "file": "fixtures/basic/widget_tree_repro.dart",
+      "id": "fixtures/basic/widget_tree_repro.dart#ControlCard",
+      "kind": "class",
+      "modifiers": [],
+      "name": "ControlCard",
+      "nameRange": {
+        "col": 7,
+        "line": 8,
+      },
+      "qualifiedName": "ControlCard",
+      "range": {
+        "endLine": 25,
+        "startLine": 8,
+      },
+    },
+    {
+      "annotations": [],
+      "children": [
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/widget_tree_repro.dart",
+          "id": "fixtures/basic/widget_tree_repro.dart#ConditionalReturnField.ConditionalReturnField",
+          "kind": "constructor",
+          "modifiers": [
+            "const",
+          ],
+          "name": "ConditionalReturnField",
+          "nameRange": {
+            "col": 9,
+            "line": 31,
+          },
+          "parameters": [
+            {
+              "name": "dropdown",
+              "named": true,
+              "required": true,
+            },
+            {
+              "name": "key",
+              "named": true,
+              "required": false,
+            },
+          ],
+          "parentId": "fixtures/basic/widget_tree_repro.dart#ConditionalReturnField",
+          "qualifiedName": "ConditionalReturnField.ConditionalReturnField",
+          "range": {
+            "endLine": 31,
+            "startLine": 31,
+          },
+        },
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/widget_tree_repro.dart",
+          "id": "fixtures/basic/widget_tree_repro.dart#ConditionalReturnField.dropdown",
+          "kind": "field",
+          "modifiers": [
+            "final",
+          ],
+          "name": "dropdown",
+          "nameRange": {
+            "col": 14,
+            "line": 33,
+          },
+          "parentId": "fixtures/basic/widget_tree_repro.dart#ConditionalReturnField",
+          "qualifiedName": "ConditionalReturnField.dropdown",
+          "range": {
+            "endLine": 33,
+            "startLine": 33,
+          },
+          "returnType": "bool",
+        },
+        {
+          "annotations": [
+            {
+              "name": "override",
+            },
+          ],
+          "children": [],
+          "file": "fixtures/basic/widget_tree_repro.dart",
+          "id": "fixtures/basic/widget_tree_repro.dart#ConditionalReturnField.build",
+          "kind": "method",
+          "modifiers": [],
+          "name": "build",
+          "nameRange": {
+            "col": 10,
+            "line": 36,
+          },
+          "parameters": [
+            {
+              "name": "context",
+              "named": false,
+              "required": true,
+              "type": "BuildContext",
+            },
+          ],
+          "parentId": "fixtures/basic/widget_tree_repro.dart#ConditionalReturnField",
+          "qualifiedName": "ConditionalReturnField.build",
+          "range": {
+            "endLine": 42,
+            "startLine": 36,
+          },
+          "returnType": "Widget",
+        },
+      ],
+      "extendsType": {
+        "name": "StatelessWidget",
+        "typeArgs": [],
+      },
+      "file": "fixtures/basic/widget_tree_repro.dart",
+      "id": "fixtures/basic/widget_tree_repro.dart#ConditionalReturnField",
+      "kind": "class",
+      "modifiers": [],
+      "name": "ConditionalReturnField",
+      "nameRange": {
+        "col": 7,
+        "line": 30,
+      },
+      "qualifiedName": "ConditionalReturnField",
+      "range": {
+        "endLine": 43,
+        "startLine": 30,
+      },
+    },
+    {
+      "annotations": [],
+      "children": [
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/widget_tree_repro.dart",
+          "id": "fixtures/basic/widget_tree_repro.dart#BuilderHelperField.BuilderHelperField",
+          "kind": "constructor",
+          "modifiers": [
+            "const",
+          ],
+          "name": "BuilderHelperField",
+          "nameRange": {
+            "col": 9,
+            "line": 49,
+          },
+          "parameters": [
+            {
+              "name": "key",
+              "named": true,
+              "required": false,
+            },
+          ],
+          "parentId": "fixtures/basic/widget_tree_repro.dart#BuilderHelperField",
+          "qualifiedName": "BuilderHelperField.BuilderHelperField",
+          "range": {
+            "endLine": 49,
+            "startLine": 49,
+          },
+        },
+        {
+          "annotations": [
+            {
+              "name": "override",
+            },
+          ],
+          "children": [],
+          "file": "fixtures/basic/widget_tree_repro.dart",
+          "id": "fixtures/basic/widget_tree_repro.dart#BuilderHelperField.build",
+          "kind": "method",
+          "modifiers": [],
+          "name": "build",
+          "nameRange": {
+            "col": 10,
+            "line": 52,
+          },
+          "parameters": [
+            {
+              "name": "context",
+              "named": false,
+              "required": true,
+              "type": "BuildContext",
+            },
+          ],
+          "parentId": "fixtures/basic/widget_tree_repro.dart#BuilderHelperField",
+          "qualifiedName": "BuilderHelperField.build",
+          "range": {
+            "endLine": 59,
+            "startLine": 52,
+          },
+          "returnType": "Widget",
+        },
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/widget_tree_repro.dart",
+          "id": "fixtures/basic/widget_tree_repro.dart#BuilderHelperField._buildBody",
+          "kind": "method",
+          "modifiers": [],
+          "name": "_buildBody",
+          "nameRange": {
+            "col": 10,
+            "line": 61,
+          },
+          "parameters": [
+            {
+              "name": "context",
+              "named": false,
+              "required": true,
+              "type": "BuildContext",
+            },
+          ],
+          "parentId": "fixtures/basic/widget_tree_repro.dart#BuilderHelperField",
+          "qualifiedName": "BuilderHelperField._buildBody",
+          "range": {
+            "endLine": 68,
+            "startLine": 61,
+          },
+          "returnType": "Widget",
+        },
+      ],
+      "extendsType": {
+        "name": "StatelessWidget",
+        "typeArgs": [],
+      },
+      "file": "fixtures/basic/widget_tree_repro.dart",
+      "id": "fixtures/basic/widget_tree_repro.dart#BuilderHelperField",
+      "kind": "class",
+      "modifiers": [],
+      "name": "BuilderHelperField",
+      "nameRange": {
+        "col": 7,
+        "line": 48,
+      },
+      "qualifiedName": "BuilderHelperField",
+      "range": {
+        "endLine": 69,
+        "startLine": 48,
+      },
+    },
+    {
+      "annotations": [],
+      "children": [
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/widget_tree_repro.dart",
+          "id": "fixtures/basic/widget_tree_repro.dart#ListenableField.ListenableField",
+          "kind": "constructor",
+          "modifiers": [
+            "const",
+          ],
+          "name": "ListenableField",
+          "nameRange": {
+            "col": 9,
+            "line": 75,
+          },
+          "parameters": [
+            {
+              "name": "key",
+              "named": true,
+              "required": false,
+            },
+          ],
+          "parentId": "fixtures/basic/widget_tree_repro.dart#ListenableField",
+          "qualifiedName": "ListenableField.ListenableField",
+          "range": {
+            "endLine": 75,
+            "startLine": 75,
+          },
+        },
+        {
+          "annotations": [
+            {
+              "name": "override",
+            },
+          ],
+          "children": [],
+          "file": "fixtures/basic/widget_tree_repro.dart",
+          "id": "fixtures/basic/widget_tree_repro.dart#ListenableField.build",
+          "kind": "method",
+          "modifiers": [],
+          "name": "build",
+          "nameRange": {
+            "col": 10,
+            "line": 78,
+          },
+          "parameters": [
+            {
+              "name": "context",
+              "named": false,
+              "required": true,
+              "type": "BuildContext",
+            },
+          ],
+          "parentId": "fixtures/basic/widget_tree_repro.dart#ListenableField",
+          "qualifiedName": "ListenableField.build",
+          "range": {
+            "endLine": 91,
+            "startLine": 78,
+          },
+          "returnType": "Widget",
+        },
+      ],
+      "extendsType": {
+        "name": "StatelessWidget",
+        "typeArgs": [],
+      },
+      "file": "fixtures/basic/widget_tree_repro.dart",
+      "id": "fixtures/basic/widget_tree_repro.dart#ListenableField",
+      "kind": "class",
+      "modifiers": [],
+      "name": "ListenableField",
+      "nameRange": {
+        "col": 7,
+        "line": 74,
+      },
+      "qualifiedName": "ListenableField",
+      "range": {
+        "endLine": 92,
+        "startLine": 74,
+      },
+    },
+    {
+      "annotations": [],
+      "children": [
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/widget_tree_repro.dart",
+          "id": "fixtures/basic/widget_tree_repro.dart#MappedChildrenField.MappedChildrenField",
+          "kind": "constructor",
+          "modifiers": [
+            "const",
+          ],
+          "name": "MappedChildrenField",
+          "nameRange": {
+            "col": 9,
+            "line": 99,
+          },
+          "parameters": [
+            {
+              "name": "items",
+              "named": true,
+              "required": true,
+            },
+            {
+              "name": "key",
+              "named": true,
+              "required": false,
+            },
+          ],
+          "parentId": "fixtures/basic/widget_tree_repro.dart#MappedChildrenField",
+          "qualifiedName": "MappedChildrenField.MappedChildrenField",
+          "range": {
+            "endLine": 99,
+            "startLine": 99,
+          },
+        },
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/widget_tree_repro.dart",
+          "id": "fixtures/basic/widget_tree_repro.dart#MappedChildrenField.items",
+          "kind": "field",
+          "modifiers": [
+            "final",
+          ],
+          "name": "items",
+          "nameRange": {
+            "col": 22,
+            "line": 101,
+          },
+          "parentId": "fixtures/basic/widget_tree_repro.dart#MappedChildrenField",
+          "qualifiedName": "MappedChildrenField.items",
+          "range": {
+            "endLine": 101,
+            "startLine": 101,
+          },
+          "returnType": "List<String>",
+        },
+        {
+          "annotations": [
+            {
+              "name": "override",
+            },
+          ],
+          "children": [],
+          "file": "fixtures/basic/widget_tree_repro.dart",
+          "id": "fixtures/basic/widget_tree_repro.dart#MappedChildrenField.build",
+          "kind": "method",
+          "modifiers": [],
+          "name": "build",
+          "nameRange": {
+            "col": 10,
+            "line": 104,
+          },
+          "parameters": [
+            {
+              "name": "context",
+              "named": false,
+              "required": true,
+              "type": "BuildContext",
+            },
+          ],
+          "parentId": "fixtures/basic/widget_tree_repro.dart#MappedChildrenField",
+          "qualifiedName": "MappedChildrenField.build",
+          "range": {
+            "endLine": 110,
+            "startLine": 104,
+          },
+          "returnType": "Widget",
+        },
+      ],
+      "extendsType": {
+        "name": "StatelessWidget",
+        "typeArgs": [],
+      },
+      "file": "fixtures/basic/widget_tree_repro.dart",
+      "id": "fixtures/basic/widget_tree_repro.dart#MappedChildrenField",
+      "kind": "class",
+      "modifiers": [],
+      "name": "MappedChildrenField",
+      "nameRange": {
+        "col": 7,
+        "line": 98,
+      },
+      "qualifiedName": "MappedChildrenField",
+      "range": {
+        "endLine": 111,
+        "startLine": 98,
+      },
+    },
+    {
+      "annotations": [],
+      "children": [
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/widget_tree_repro.dart",
+          "id": "fixtures/basic/widget_tree_repro.dart#EarlyReturnField.EarlyReturnField",
+          "kind": "constructor",
+          "modifiers": [
+            "const",
+          ],
+          "name": "EarlyReturnField",
+          "nameRange": {
+            "col": 9,
+            "line": 117,
+          },
+          "parameters": [
+            {
+              "name": "loading",
+              "named": true,
+              "required": true,
+            },
+            {
+              "name": "key",
+              "named": true,
+              "required": false,
+            },
+          ],
+          "parentId": "fixtures/basic/widget_tree_repro.dart#EarlyReturnField",
+          "qualifiedName": "EarlyReturnField.EarlyReturnField",
+          "range": {
+            "endLine": 117,
+            "startLine": 117,
+          },
+        },
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/widget_tree_repro.dart",
+          "id": "fixtures/basic/widget_tree_repro.dart#EarlyReturnField.loading",
+          "kind": "field",
+          "modifiers": [
+            "final",
+          ],
+          "name": "loading",
+          "nameRange": {
+            "col": 14,
+            "line": 119,
+          },
+          "parentId": "fixtures/basic/widget_tree_repro.dart#EarlyReturnField",
+          "qualifiedName": "EarlyReturnField.loading",
+          "range": {
+            "endLine": 119,
+            "startLine": 119,
+          },
+          "returnType": "bool",
+        },
+        {
+          "annotations": [
+            {
+              "name": "override",
+            },
+          ],
+          "children": [],
+          "file": "fixtures/basic/widget_tree_repro.dart",
+          "id": "fixtures/basic/widget_tree_repro.dart#EarlyReturnField.build",
+          "kind": "method",
+          "modifiers": [],
+          "name": "build",
+          "nameRange": {
+            "col": 10,
+            "line": 122,
+          },
+          "parameters": [
+            {
+              "name": "context",
+              "named": false,
+              "required": true,
+              "type": "BuildContext",
+            },
+          ],
+          "parentId": "fixtures/basic/widget_tree_repro.dart#EarlyReturnField",
+          "qualifiedName": "EarlyReturnField.build",
+          "range": {
+            "endLine": 129,
+            "startLine": 122,
+          },
+          "returnType": "Widget",
+        },
+      ],
+      "extendsType": {
+        "name": "StatelessWidget",
+        "typeArgs": [],
+      },
+      "file": "fixtures/basic/widget_tree_repro.dart",
+      "id": "fixtures/basic/widget_tree_repro.dart#EarlyReturnField",
+      "kind": "class",
+      "modifiers": [],
+      "name": "EarlyReturnField",
+      "nameRange": {
+        "col": 7,
+        "line": 116,
+      },
+      "qualifiedName": "EarlyReturnField",
+      "range": {
+        "endLine": 130,
+        "startLine": 116,
+      },
+    },
+    {
+      "annotations": [],
+      "children": [
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/widget_tree_repro.dart",
+          "id": "fixtures/basic/widget_tree_repro.dart#MultiProviderScreen.MultiProviderScreen",
+          "kind": "constructor",
+          "modifiers": [
+            "const",
+          ],
+          "name": "MultiProviderScreen",
+          "nameRange": {
+            "col": 9,
+            "line": 137,
+          },
+          "parameters": [
+            {
+              "name": "key",
+              "named": true,
+              "required": false,
+            },
+          ],
+          "parentId": "fixtures/basic/widget_tree_repro.dart#MultiProviderScreen",
+          "qualifiedName": "MultiProviderScreen.MultiProviderScreen",
+          "range": {
+            "endLine": 137,
+            "startLine": 137,
+          },
+        },
+        {
+          "annotations": [
+            {
+              "name": "override",
+            },
+          ],
+          "children": [],
+          "file": "fixtures/basic/widget_tree_repro.dart",
+          "id": "fixtures/basic/widget_tree_repro.dart#MultiProviderScreen.build",
+          "kind": "method",
+          "modifiers": [],
+          "name": "build",
+          "nameRange": {
+            "col": 10,
+            "line": 140,
+          },
+          "parameters": [
+            {
+              "name": "context",
+              "named": false,
+              "required": true,
+              "type": "BuildContext",
+            },
+          ],
+          "parentId": "fixtures/basic/widget_tree_repro.dart#MultiProviderScreen",
+          "qualifiedName": "MultiProviderScreen.build",
+          "range": {
+            "endLine": 153,
+            "startLine": 140,
+          },
+          "returnType": "Widget",
+        },
+      ],
+      "extendsType": {
+        "name": "StatelessWidget",
+        "typeArgs": [],
+      },
+      "file": "fixtures/basic/widget_tree_repro.dart",
+      "id": "fixtures/basic/widget_tree_repro.dart#MultiProviderScreen",
+      "kind": "class",
+      "modifiers": [],
+      "name": "MultiProviderScreen",
+      "nameRange": {
+        "col": 7,
+        "line": 136,
+      },
+      "qualifiedName": "MultiProviderScreen",
+      "range": {
+        "endLine": 154,
+        "startLine": 136,
+      },
+    },
+  ],
+}
+`;

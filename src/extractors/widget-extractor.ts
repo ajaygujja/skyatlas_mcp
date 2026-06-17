@@ -18,6 +18,7 @@
  */
 import type { Node, Tree } from 'web-tree-sitter';
 import type { WidgetFlavor, WidgetInfo, WidgetNode } from '../model/flutter.js';
+import { parseTypeArgList } from './dart-idioms.js';
 
 /** Known widget base classes → flavor. Anything else ending in `Widget` is `unknownWidgetSubclass`. */
 const FLAVOR_BY_SUPERCLASS: Record<string, WidgetFlavor> = {
@@ -408,11 +409,11 @@ function labelText(label: Node): string | undefined {
   return label.namedChildren.find((c) => c.type === 'identifier')?.text;
 }
 
-/** `(type_arguments (type_identifier|...)+)` → verbatim arg texts. */
+/** `(type_arguments …)` → verbatim arg texts, nested generics preserved. */
 function parseTypeArgs(parent: Node): string[] | undefined {
   const ta = parent.namedChildren.find((c) => c.type === 'type_arguments');
   if (!ta) return undefined;
-  const args = ta.namedChildren.map((c) => c.text);
+  const args = parseTypeArgList(ta);
   return args.length > 0 ? args : undefined;
 }
 
