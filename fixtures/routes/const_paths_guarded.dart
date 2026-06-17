@@ -11,6 +11,16 @@ class RoutePaths {
   static const edit = 'edit';
 }
 
+/// B6/N1: enum-backed route paths — `AppRoutes.splash.path` must resolve to
+/// `/splash`, and `AppRoutes.splash.name` to `splash`.
+enum AppRoutes {
+  splash('/splash'),
+  profile('/profile');
+
+  const AppRoutes(this.path);
+  final String path;
+}
+
 final router = GoRouter(
   routes: [
     GoRoute(
@@ -42,6 +52,10 @@ final router = GoRouter(
     GoRoute(
       path: RoutePaths.unmapped,
       builder: (context, state) => const MysteryScreen(),
+    ),
+    GoRoute(
+      path: AppRoutes.splash.path,
+      builder: (context, state) => const SplashScreen(),
     ),
   ],
 );
