@@ -51,19 +51,49 @@ async function main(): Promise<void> {
 
   // Keep the index fresh as files change (§8 Phase 4). Starts only after the
   // initial build succeeds, against that same instance; a watcher failure is
-  // logged and swallowed — stale-but-alive beats dead (§9.4).
-  void indexPromise
+  // logged and swallowed — stale-but-alive beats dead (§9.4). The handle is
+  // captured (not discarded) so shutdown can stop it: the watcher's open fs
+  // handles keep the event loop alive, so without an explicit close the process
+  // would never exit on its own.
+  const watcherPromise = indexPromise
     .then((index) => startWatcher(root, index))
     .catch((err: unknown) => {
       logger.error('watcher failed to start; index will not auto-refresh', {
         error: String(err),
       });
+      return undefined;
     });
 
   const server = createServer(() => indexPromise);
   const transport = new StdioServerTransport();
   await server.connect(transport);
   logger.info('server started', { name: SERVER_NAME, version: SERVER_VERSION, root });
+
+  // Lifecycle: a stdio MCP server is a child of its client. When the client
+  // disconnects it closes our stdin (and may send SIGTERM/SIGINT). We MUST exit
+  // then — the watcher pins the event loop, so a server that ignores disconnect
+  // lingers as an orphan. On reconnect a fresh instance spawns while the old one
+  // survives; orphans accumulate, each still watching, multiplying fd pressure
+  // until the OS hands back EMFILE. Idempotent so overlapping triggers (stdin
+  // close + a signal) shut down exactly once.
+  let shuttingDown = false;
+  const shutdown = (reason: string): void => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    logger.info('shutting down', { reason });
+    // A clean stop (flush the cache, close watches) is best-effort; a prompt
+    // exit is mandatory. Force it if a wedged close()/flush can't settle fast.
+    setTimeout(() => process.exit(0), 2000).unref();
+    void watcherPromise
+      .then((handle) => handle?.close())
+      .catch(() => {})
+      .finally(() => process.exit(0));
+  };
+
+  process.stdin.on('end', () => shutdown('stdin ended'));
+  process.stdin.on('close', () => shutdown('stdin closed'));
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 // Run only when executed as the CLI entrypoint — importing this module (e.g. for
