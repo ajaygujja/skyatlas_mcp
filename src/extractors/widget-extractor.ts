@@ -72,8 +72,8 @@ function widgetInfoFor(cls: Node, relPath: string): WidgetInfo | undefined {
   if (body) {
     const buildBody = findBuildBody(body);
     if (buildBody) {
-      const tree = scanSequence(buildBody.namedChildren, false)[0];
-      if (tree) info.buildTree = tree;
+      const roots = collectBuildRoots(buildBody);
+      if (roots.length > 0) info.buildTree = roots;
     }
   }
   return info;
@@ -104,6 +104,72 @@ function findBuildBody(classBody: Node): Node | undefined {
     if (next?.type === 'function_body') return next;
   }
   return undefined;
+}
+
+/**
+ * Collects all alternative build roots from a build() function body.
+ * Locates return_statement nodes (never descending into closures), extracts
+ * their expressions, and expands conditional_expression / switch_expression
+ * into per-branch roots. Roots are marked branch: true when ≥2 alternatives.
+ *
+ * Observed CST shapes (Working Rule 2, tree-sitter-dart @ a9bdfa3):
+ *   - Multiple returns: return_statement siblings in block / nested in if_statement.
+ *   - Ternary: return_statement → conditional_expression
+ *       namedChildren: [cond, then_parts…, else_parts…]
+ *       Skip child[0] (condition); scanSequence handles the interleaved pairs.
+ *   - Switch expr: return_statement → switch_expression
+ *       namedChildren: [parenthesized_expression, switch_expression_case*]
+ *       switch_expression_case namedChildren: [pattern, expr_parts…] — skip pattern.
+ */
+function collectBuildRoots(buildBody: Node): WidgetNode[] {
+  const returnNodes = findTopLevelReturns(buildBody);
+  const roots: WidgetNode[] = [];
+
+  for (const ret of returnNodes) {
+    const expr = ret.namedChildren[0];
+    if (!expr) continue;
+
+    if (expr.type === 'conditional_expression') {
+      // Skip condition (child[0]); the then/else expression parts follow as
+      // sibling children. scanSequence naturally groups each invocation pair.
+      const nodes = scanSequence(expr.namedChildren.slice(1), false);
+      roots.push(...nodes);
+    } else if (expr.type === 'switch_expression') {
+      // Each switch_expression_case contributes one branch expression.
+      for (const cas of expr.namedChildren) {
+        if (cas.type !== 'switch_expression_case') continue;
+        // cas.namedChildren: [pattern, expr_parts…] — skip the pattern.
+        const nodes = scanSequence(cas.namedChildren.slice(1), false);
+        roots.push(...nodes);
+      }
+    } else {
+      // Direct return: the expression and its selectors are siblings inside the
+      // return_statement (e.g. identifier + selector for plain invocations).
+      const nodes = scanSequence(ret.namedChildren, false);
+      roots.push(...nodes);
+    }
+  }
+
+  if (roots.length > 1) {
+    for (const r of roots) r.branch = true;
+  }
+  return roots;
+}
+
+/**
+ * Recursively collects return_statement nodes from a build body, stopping at
+ * function_expression boundaries so closure returns are not included.
+ */
+function findTopLevelReturns(node: Node): Node[] {
+  const results: Node[] = [];
+  for (const child of node.namedChildren) {
+    if (child.type === 'return_statement') {
+      results.push(child);
+    } else if (child.type !== 'function_expression') {
+      results.push(...findTopLevelReturns(child));
+    }
+  }
+  return results;
 }
 
 /**

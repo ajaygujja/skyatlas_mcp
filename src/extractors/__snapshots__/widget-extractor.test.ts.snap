@@ -3,80 +3,82 @@
 exports[`extractWidgets > matches snapshot: home_screen.dart 1`] = `
 [
   {
-    "buildTree": {
-      "line": 10,
-      "namedSlots": {
-        "appBar": [
-          {
-            "line": 11,
-            "namedSlots": {
-              "title": [
-                {
-                  "line": 11,
-                  "namedSlots": {},
-                  "widget": "Text",
-                },
-              ],
-            },
-            "widget": "AppBar",
-          },
-        ],
-        "body": [
-          {
-            "line": 12,
-            "namedSlots": {
-              "builder": [
-                {
-                  "isBuilderCallback": true,
-                  "line": 14,
-                  "namedSlots": {
-                    "itemBuilder": [
-                      {
-                        "isBuilderCallback": true,
-                        "line": 17,
-                        "namedSlots": {
-                          "title": [
-                            {
-                              "line": 17,
-                              "namedSlots": {},
-                              "widget": "Text",
-                            },
-                          ],
-                        },
-                        "widget": "ListTile",
-                      },
-                    ],
+    "buildTree": [
+      {
+        "line": 10,
+        "namedSlots": {
+          "appBar": [
+            {
+              "line": 11,
+              "namedSlots": {
+                "title": [
+                  {
+                    "line": 11,
+                    "namedSlots": {},
+                    "widget": "Text",
                   },
-                  "widget": "ListView.builder",
-                },
-              ],
+                ],
+              },
+              "widget": "AppBar",
             },
-            "recoveredFromMisparse": true,
-            "typeArgs": [
-              "HomeBloc",
-              "HomeState",
-            ],
-            "widget": "BlocBuilder",
-          },
-        ],
-        "floatingActionButton": [
-          {
-            "line": 22,
-            "namedSlots": {
-              "child": [
-                {
-                  "line": 24,
-                  "namedSlots": {},
-                  "widget": "Icon",
-                },
+          ],
+          "body": [
+            {
+              "line": 12,
+              "namedSlots": {
+                "builder": [
+                  {
+                    "isBuilderCallback": true,
+                    "line": 14,
+                    "namedSlots": {
+                      "itemBuilder": [
+                        {
+                          "isBuilderCallback": true,
+                          "line": 17,
+                          "namedSlots": {
+                            "title": [
+                              {
+                                "line": 17,
+                                "namedSlots": {},
+                                "widget": "Text",
+                              },
+                            ],
+                          },
+                          "widget": "ListTile",
+                        },
+                      ],
+                    },
+                    "widget": "ListView.builder",
+                  },
+                ],
+              },
+              "recoveredFromMisparse": true,
+              "typeArgs": [
+                "HomeBloc",
+                "HomeState",
               ],
+              "widget": "BlocBuilder",
             },
-            "widget": "FloatingActionButton",
-          },
-        ],
+          ],
+          "floatingActionButton": [
+            {
+              "line": 22,
+              "namedSlots": {
+                "child": [
+                  {
+                    "line": 24,
+                    "namedSlots": {},
+                    "widget": "Icon",
+                  },
+                ],
+              },
+              "widget": "FloatingActionButton",
+            },
+          ],
+        },
+        "widget": "Scaffold",
       },
-      "widget": "Scaffold",
-    },
+    ],
     "file": "fixtures/widgets/home_screen.dart",
     "flavor": "stateless",
     "line": 5,
@@ -90,37 +92,39 @@ exports[`extractWidgets > matches snapshot: home_screen.dart 1`] = `
 exports[`extractWidgets > matches snapshot: profile_widgets.dart 1`] = `
 [
   {
-    "buildTree": {
-      "line": 14,
-      "namedSlots": {
-        "children": [
-          {
-            "line": 16,
-            "namedSlots": {},
-            "widget": "Text",
-          },
-          {
-            "line": 17,
-            "namedSlots": {},
-            "widget": "Divider",
-          },
-          {
-            "line": 18,
-            "namedSlots": {
-              "child": [
-                {
-                  "line": 20,
-                  "namedSlots": {},
-                  "widget": "Text",
-                },
-              ],
+    "buildTree": [
+      {
+        "line": 14,
+        "namedSlots": {
+          "children": [
+            {
+              "line": 16,
+              "namedSlots": {},
+              "widget": "Text",
             },
-            "widget": "ElevatedButton",
-          },
-        ],
+            {
+              "line": 17,
+              "namedSlots": {},
+              "widget": "Divider",
+            },
+            {
+              "line": 18,
+              "namedSlots": {
+                "child": [
+                  {
+                    "line": 20,
+                    "namedSlots": {},
+                    "widget": "Text",
+                  },
+                ],
+              },
+              "widget": "ElevatedButton",
+            },
+          ],
+        },
+        "widget": "Column",
       },
-      "widget": "Column",
-    },
+    ],
     "file": "fixtures/widgets/profile_widgets.dart",
     "flavor": "consumer",
     "line": 6,
@@ -129,27 +133,29 @@ exports[`extractWidgets > matches snapshot: profile_widgets.dart 1`] = `
     "symbolId": "fixtures/widgets/profile_widgets.dart#ProfileView",
   },
   {
-    "buildTree": {
-      "line": 34,
-      "namedSlots": {
-        "child": [
-          {
-            "line": 36,
-            "namedSlots": {
-              "label": [
-                {
-                  "line": 36,
-                  "namedSlots": {},
-                  "widget": "Text",
-                },
-              ],
+    "buildTree": [
+      {
+        "line": 34,
+        "namedSlots": {
+          "child": [
+            {
+              "line": 36,
+              "namedSlots": {
+                "label": [
+                  {
+                    "line": 36,
+                    "namedSlots": {},
+                    "widget": "Text",
+                  },
+                ],
+              },
+              "widget": "Badge",
             },
-            "widget": "Badge",
-          },
-        ],
+          ],
+        },
+        "widget": "GestureDetector",
       },
-      "widget": "GestureDetector",
-    },
+    ],
     "file": "fixtures/widgets/profile_widgets.dart",
     "flavor": "hook",
     "line": 28,

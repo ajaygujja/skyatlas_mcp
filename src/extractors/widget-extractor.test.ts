@@ -24,6 +24,11 @@ function flattenTree(node: WidgetNode | undefined): WidgetNode[] {
   return [node, ...kids.flatMap(flattenTree)];
 }
 
+/** Flatten the first root of a multi-root buildTree. */
+function flattenFirstRoot(nodes: WidgetNode[] | undefined): WidgetNode[] {
+  return flattenTree(nodes?.[0]);
+}
+
 describe('extractWidgets', () => {
   // Snapshots are the extraction contract: a diff in review = behavior change (§9.3).
   it.each(readdirSync(FIXTURES).filter((f) => f.endsWith('.dart')))(
@@ -49,7 +54,7 @@ describe('extractWidgets', () => {
 
   it('parses a nested build tree with named slots and a children list', async () => {
     const profile = await extractFixture('profile_widgets.dart');
-    const tree = profile.find((w) => w.name === 'ProfileView')?.buildTree;
+    const tree = profile.find((w) => w.name === 'ProfileView')?.buildTree?.[0];
     expect(tree?.widget).toBe('Column');
     const children = tree?.namedSlots['children'] ?? [];
     expect(children.map((c) => c.widget)).toEqual(['Text', 'Divider', 'ElevatedButton']);
@@ -57,7 +62,7 @@ describe('extractWidgets', () => {
 
   it('recovers a mis-parsed generic constructor (BlocBuilder<A, B>) with type args and builder subtree', async () => {
     const home = await extractFixture('home_screen.dart');
-    const tree = home.find((w) => w.name === 'HomeScreen')?.buildTree;
+    const tree = home.find((w) => w.name === 'HomeScreen')?.buildTree?.[0];
     const blocBuilder = tree?.namedSlots['body']?.[0];
     expect(blocBuilder?.widget).toBe('BlocBuilder');
     expect(blocBuilder?.typeArgs).toEqual(['HomeBloc', 'HomeState']);
@@ -72,14 +77,14 @@ describe('extractWidgets', () => {
   it('keeps clean type args on a single-type-arg generic constructor', async () => {
     // FutureBuilder<int>(...) parses cleanly — type_arguments inside argument_part.
     const home = await extractFixture('home_screen.dart');
-    const ctors = flattenTree(home.find((w) => w.name === 'HomeScreen')?.buildTree);
+    const ctors = flattenFirstRoot(home.find((w) => w.name === 'HomeScreen')?.buildTree);
     // ListView.builder appears via the recovered subtree; assert names are reachable.
     expect(ctors.map((c) => c.widget)).toContain('ListView.builder');
   });
 
   it('omits event-handler callbacks (onPressed/onTap) from the static layout tree', async () => {
     const home = await extractFixture('home_screen.dart');
-    const fab = home.find((w) => w.name === 'HomeScreen')?.buildTree?.namedSlots[
+    const fab = home.find((w) => w.name === 'HomeScreen')?.buildTree?.[0]?.namedSlots[
       'floatingActionButton'
     ]?.[0];
     expect(fab?.widget).toBe('FloatingActionButton');
@@ -96,6 +101,6 @@ describe('extractWidgets', () => {
     expect(sw?.buildTree).toBeUndefined();
     const state = widgets.find((w) => w.name === '_SettingsScreenState');
     expect(state?.flavor).toBe('state');
-    expect(state?.buildTree?.widget).toBe('Scaffold');
+    expect(state?.buildTree?.[0]?.widget).toBe('Scaffold');
   });
 });

@@ -30,8 +30,12 @@ export interface WidgetInfo {
   line: number;
   /** Superclass as written, e.g. "State<SettingsScreen>" — verbatim. */
   superclass?: string;
-  /** Present when a build() method was found and its returned tree parsed. */
-  buildTree?: WidgetNode;
+  /**
+   * Present when a build() method was found and its returned tree parsed.
+   * Multiple entries represent alternative branches (conditional/switch/early-return
+   * patterns); each root is marked `branch: true` when there are ≥2 outcomes.
+   */
+  buildTree?: WidgetNode[];
 }
 
 /**
@@ -56,6 +60,12 @@ export interface WidgetNode {
    * Its slots are best-effort; absence of children is not proof of none.
    */
   recoveredFromMisparse?: boolean;
+  /**
+   * True when this root is one of ≥2 alternative branches (conditional return,
+   * switch-expression return, or multiple return statements). Honesty label:
+   * the tree shows all statically reachable outcomes, not a single path.
+   */
+  branch?: true;
 }
 
 export type BlocFlavor = 'bloc' | 'cubit';

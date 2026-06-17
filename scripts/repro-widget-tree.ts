@@ -15,6 +15,7 @@ function renderNode(node: WidgetNode, slot: string | undefined, depth: number, o
   const head = node.typeArgs ? `${node.widget}<${node.typeArgs.join(', ')}>` : node.widget;
   const prefix = slot ? `${slot}: ` : '';
   const tags: string[] = [];
+  if (node.branch) tags.push('alternative branch');
   if (node.isBuilderCallback) tags.push('builder');
   if (node.recoveredFromMisparse) tags.push('generic recovered from mis-parse — slots best-effort');
   const tagText = tags.length > 0 ? `  [${tags.join('; ')}]` : '';
@@ -35,12 +36,14 @@ async function main(): Promise<void> {
 
   for (const w of widgets) {
     process.stdout.write(`\n# ${w.name} (${w.flavor}) — :${String(w.line)}\n`);
-    if (!w.buildTree) {
+    if (!w.buildTree?.length) {
       process.stdout.write('  <no build tree extracted>\n');
       continue;
     }
     const body: string[] = [];
-    renderNode(w.buildTree, undefined, 1, body);
+    for (const root of w.buildTree) {
+      renderNode(root, undefined, 1, body);
+    }
     process.stdout.write(body.join('\n') + '\n');
   }
 }

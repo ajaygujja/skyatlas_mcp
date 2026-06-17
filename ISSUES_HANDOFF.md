@@ -439,8 +439,8 @@ for the route graph to show real paths/names instead of `(unresolved const)`.
 Ordered by leverage and by how much each de-risks the next. Tasks within a group
 share a root cause and should land together.
 
-1. **W3** — nested generic type args (smallest, systemic, unblocks clean output everywhere)
-2. **B1 + B2 + B3 + W1 + W2** — the RC1 widget-tree rewrite (the core of the work)
+1. ~~**W3** — nested generic type args~~ ✅ DONE (commit `fefc8b0`) — `dart-idioms.ts::parseTypeArgList` groups `(type_identifier, type_arguments)` sibling pairs; both `widget-extractor.ts` and `riverpod-extractor.ts` updated. 116/116 tests pass.
+2. **B1 + B2 + B3 + W1 + W2** — the RC1 widget-tree rewrite (the core of the work) ← **NEXT**
 3. **W4 + N2** — dynamic-collection honesty (rides on the same code paths)
 4. **B6 + N1** — enum-value-arg capture + enum const resolution
 5. **B5** — block-body `create:` in wiring
@@ -450,7 +450,7 @@ share a root cause and should land together.
 
 ---
 
-### Task 1 — W3: nested generic type args mangled
+### ~~Task 1 — W3: nested generic type args mangled~~ ✅ DONE (`fefc8b0`)
 **Files:** [src/extractors/widget-extractor.ts:412](src/extractors/widget-extractor.ts#L412) (`parseTypeArgs`); the equivalent type-arg reader in `src/extractors/riverpod-extractor.ts`.
 **Now:** `parseTypeArgs` does `ta.namedChildren.map((c) => c.text)`. For
 `ValueListenableBuilder<List<int>>` the `type_arguments` node contains a child
