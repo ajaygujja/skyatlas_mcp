@@ -66,6 +66,21 @@ export interface WidgetNode {
    * the tree shows all statically reachable outcomes, not a single path.
    */
   branch?: true;
+  /**
+   * Honesty marker for a child built dynamically rather than as a literal
+   * constructor call. The node is shown but never as a plain static child:
+   *   - 'mapped': one representative child from a `.map`/`.where`/`.expand`
+   *     closure over a collection (`items.map((e) => Tile()).toList()`); the
+   *     real count is runtime-dependent, not enumerable.
+   *   - 'spread': a spread element (`...widgets`) — an opaque list reference.
+   */
+  dynamic?: 'mapped' | 'spread';
+  /**
+   * True when this child lives inside a collection-`if`
+   * (`if (cond) Banner()`) and therefore renders only when the condition
+   * holds. Distinct from `branch`, which marks whole-tree alternatives.
+   */
+  conditional?: true;
 }
 
 export type BlocFlavor = 'bloc' | 'cubit';

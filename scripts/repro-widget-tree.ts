@@ -16,6 +16,9 @@ function renderNode(node: WidgetNode, slot: string | undefined, depth: number, o
   const prefix = slot ? `${slot}: ` : '';
   const tags: string[] = [];
   if (node.branch) tags.push('alternative branch');
+  if (node.conditional) tags.push('conditional');
+  if (node.dynamic === 'mapped') tags.push('dynamic (mapped)');
+  if (node.dynamic === 'spread') tags.push('spread (dynamic)');
   if (node.isBuilderCallback) tags.push('builder');
   if (node.recoveredFromMisparse) tags.push('generic recovered from mis-parse — slots best-effort');
   const tagText = tags.length > 0 ? `  [${tags.join('; ')}]` : '';
