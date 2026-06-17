@@ -18,7 +18,17 @@
  */
 import type { Node, Tree } from 'web-tree-sitter';
 import type { WidgetFlavor, WidgetInfo, WidgetNode } from '../model/flutter.js';
-import { parseTypeArgList } from './dart-idioms.js';
+import { parseTypeArgList, RESOLVER_STATICS } from './dart-idioms.js';
+
+/**
+ * Per-widget-extraction scan context. Carries the class body so build-helper
+ * calls (`_buildBody()`, `_buildHeader()`) can be resolved inline, and an
+ * expanding set to break mutual-recursion cycles.
+ */
+interface ScanCtx {
+  classBody?: Node;
+  expanding: Set<string>;
+}
 
 /** Known widget base classes → flavor. Anything else ending in `Widget` is `unknownWidgetSubclass`. */
 const FLAVOR_BY_SUPERCLASS: Record<string, WidgetFlavor> = {
@@ -72,7 +82,8 @@ function widgetInfoFor(cls: Node, relPath: string): WidgetInfo | undefined {
   if (body) {
     const buildBody = findBuildBody(body);
     if (buildBody) {
-      const roots = collectBuildRoots(buildBody);
+      const ctx: ScanCtx = { classBody: body, expanding: new Set() };
+      const roots = collectBuildRoots(buildBody, ctx);
       if (roots.length > 0) info.buildTree = roots;
     }
   }
@@ -121,7 +132,7 @@ function findBuildBody(classBody: Node): Node | undefined {
  *       namedChildren: [parenthesized_expression, switch_expression_case*]
  *       switch_expression_case namedChildren: [pattern, expr_parts…] — skip pattern.
  */
-function collectBuildRoots(buildBody: Node): WidgetNode[] {
+function collectBuildRoots(buildBody: Node, ctx: ScanCtx): WidgetNode[] {
   const returnNodes = findTopLevelReturns(buildBody);
   const roots: WidgetNode[] = [];
 
@@ -132,20 +143,20 @@ function collectBuildRoots(buildBody: Node): WidgetNode[] {
     if (expr.type === 'conditional_expression') {
       // Skip condition (child[0]); the then/else expression parts follow as
       // sibling children. scanSequence naturally groups each invocation pair.
-      const nodes = scanSequence(expr.namedChildren.slice(1), false);
+      const nodes = scanSequence(expr.namedChildren.slice(1), false, ctx);
       roots.push(...nodes);
     } else if (expr.type === 'switch_expression') {
       // Each switch_expression_case contributes one branch expression.
       for (const cas of expr.namedChildren) {
         if (cas.type !== 'switch_expression_case') continue;
         // cas.namedChildren: [pattern, expr_parts…] — skip the pattern.
-        const nodes = scanSequence(cas.namedChildren.slice(1), false);
+        const nodes = scanSequence(cas.namedChildren.slice(1), false, ctx);
         roots.push(...nodes);
       }
     } else {
       // Direct return: the expression and its selectors are siblings inside the
       // return_statement (e.g. identifier + selector for plain invocations).
-      const nodes = scanSequence(ret.namedChildren, false);
+      const nodes = scanSequence(ret.namedChildren, false, ctx);
       roots.push(...nodes);
     }
   }
@@ -183,7 +194,7 @@ function findTopLevelReturns(node: Node): Node[] {
  * the first construction found carries `isBuilderCallback`. It does NOT
  * propagate into that construction's own slots (reset there to false).
  */
-function scanSequence(kids: readonly (Node | null)[], inBuilder: boolean): WidgetNode[] {
+function scanSequence(kids: readonly (Node | null)[], inBuilder: boolean, ctx: ScanCtx): WidgetNode[] {
   const out: WidgetNode[] = [];
   let i = 0;
   while (i < kids.length) {
@@ -193,21 +204,30 @@ function scanSequence(kids: readonly (Node | null)[], inBuilder: boolean): Widge
       continue;
     }
     if (child.type === 'const_object_expression') {
-      out.push(parseConstObject(child, inBuilder));
+      out.push(parseConstObject(child, inBuilder, ctx));
       i++;
+    } else if (child.type === 'identifier' && isBuildHelperName(child.text) && ctx.classBody) {
+      // Build-helper call: consume identifier + argument selector, inline body.
+      const nextI = kids[i + 1]?.type === 'selector' ? i + 2 : i + 1;
+      const inlined = resolveHelperMethod(child.text, ctx);
+      if (inlined.length > 0) {
+        if (inBuilder) { const first = inlined[0]; if (first) first.isBuilderCallback = true; }
+        out.push(...inlined);
+      }
+      i = nextI;
     } else if (child.type === 'identifier' && isConstructorName(child.text)) {
-      const r = parsePlainInvocation(kids, i, inBuilder);
+      const r = parsePlainInvocation(kids, i, inBuilder, ctx);
       if (r.node) out.push(r.node);
       i = Math.max(r.next, i + 1);
     } else if (child.type === 'relational_expression' && isMisparsedGeneric(child)) {
-      const r = recoverGeneric(kids, i, inBuilder);
+      const r = recoverGeneric(kids, i, inBuilder, ctx);
       if (r.node) out.push(r.node);
       i = Math.max(r.next, i + 1);
     } else {
-      // Wrapper node: descend. Entering a builder closure flips inBuilder on
-      // for its returned construction.
+      // Wrapper node: descend. Entering a builder closure marks the first
+      // construction found inside it as isBuilderCallback.
       const childIsBuilder = inBuilder || child.type === 'function_expression';
-      out.push(...scanSequence(child.namedChildren, childIsBuilder));
+      out.push(...scanSequence(child.namedChildren, childIsBuilder, ctx));
       i++;
     }
   }
@@ -219,13 +239,13 @@ function scanSequence(kids: readonly (Node | null)[], inBuilder: boolean): Widge
  * (type_arguments)? (arguments)). Self-contained: args are a direct child, no
  * trailing selector.
  */
-function parseConstObject(node: Node, inBuilder: boolean): WidgetNode {
+function parseConstObject(node: Node, inBuilder: boolean, ctx: ScanCtx): WidgetNode {
   const typeId = node.namedChildren.find((c) => c.type === 'type_identifier');
   const args = node.namedChildren.find((c) => c.type === 'arguments');
   const out: WidgetNode = {
     widget: typeId?.text ?? '<const>',
     line: node.startPosition.row + 1,
-    namedSlots: args ? slotsFromArgs(args.namedChildren) : {},
+    namedSlots: args ? slotsFromArgs(args.namedChildren, ctx) : {},
   };
   const typeArgs = parseTypeArgs(node);
   if (typeArgs) out.typeArgs = typeArgs;
@@ -244,6 +264,7 @@ function parsePlainInvocation(
   kids: readonly (Node | null)[],
   start: number,
   inBuilder: boolean,
+  ctx: ScanCtx,
 ): { node?: WidgetNode; next: number } {
   const head = kids[start];
   if (!head) return { next: start + 1 };
@@ -282,10 +303,18 @@ function parsePlainInvocation(
   }
 
   if (!args) return { next: i };
+
+  // Reject resolver statics: `Foo.of(ctx)`, `Foo.watch(ctx)` etc. share the
+  // same CST shape as named constructors but return values, not widgets.
+  const lastDot = name.lastIndexOf('.');
+  if (lastDot >= 0 && RESOLVER_STATICS.has(name.slice(lastDot + 1))) {
+    return { next: i };
+  }
+
   const node: WidgetNode = {
     widget: name,
     line: head.startPosition.row + 1,
-    namedSlots: slotsFromArgs(args.namedChildren),
+    namedSlots: slotsFromArgs(args.namedChildren, ctx),
   };
   if (typeArgs) node.typeArgs = typeArgs;
   if (inBuilder) node.isBuilderCallback = true;
@@ -303,6 +332,7 @@ function recoverGeneric(
   kids: readonly (Node | null)[],
   start: number,
   inBuilder: boolean,
+  ctx: ScanCtx,
 ): { node?: WidgetNode; next: number } {
   const lead = kids[start];
   if (!lead) return { next: start + 1 };
@@ -367,7 +397,7 @@ function recoverGeneric(
   const node: WidgetNode = {
     widget: headId.text,
     line: headId.startPosition.row + 1,
-    namedSlots: recordLit ? slotsFromRecordLiteral(recordLit) : {},
+    namedSlots: recordLit ? slotsFromRecordLiteral(recordLit, ctx) : {},
     recoveredFromMisparse: true,
   };
   if (typeArgs.length > 0) node.typeArgs = typeArgs;
@@ -381,7 +411,7 @@ function recoverGeneric(
  * named slot spills its continuation (more type args + the real `record_literal`)
  * into FOLLOWING sibling `argument` nodes at THIS level — see recoverGeneric.
  */
-function slotsFromArgs(argKids: readonly (Node | null)[]): Record<string, WidgetNode[]> {
+function slotsFromArgs(argKids: readonly (Node | null)[], ctx: ScanCtx): Record<string, WidgetNode[]> {
   const slots: Record<string, WidgetNode[]> = {};
   let i = 0;
   while (i < argKids.length) {
@@ -400,16 +430,16 @@ function slotsFromArgs(argKids: readonly (Node | null)[]): Record<string, Widget
         (c) => c.type === 'relational_expression' && isMisparsedGeneric(c),
       );
       if (misparse) {
-        const r = recoverGeneric(argKids, i, false);
+        const r = recoverGeneric(argKids, i, false, ctx);
         if (r.node) addSlot(slots, label, [r.node]);
         i = Math.max(r.next, i + 1);
         continue;
       }
-      const nodes = scanSequence(arg.namedChildren, false);
+      const nodes = scanSequence(arg.namedChildren, false, ctx);
       if (nodes.length > 0) addSlot(slots, label, nodes);
       i++;
     } else if (arg.type === 'argument') {
-      const nodes = scanSequence(arg.namedChildren, false);
+      const nodes = scanSequence(arg.namedChildren, false, ctx);
       if (nodes.length > 0) addSlot(slots, '(positional)', nodes);
       i++;
     } else {
@@ -433,7 +463,7 @@ function isEventHandlerSlot(label: string): boolean {
  * Slots from a `record_literal` recovered from a mis-parse. Children are a flat
  * sequence: `label`, value(s), `label`, value(s), …. We segment on labels.
  */
-function slotsFromRecordLiteral(rec: Node): Record<string, WidgetNode[]> {
+function slotsFromRecordLiteral(rec: Node, ctx: ScanCtx): Record<string, WidgetNode[]> {
   const slots: Record<string, WidgetNode[]> = {};
   const kids = rec.namedChildren;
   let i = 0;
@@ -452,7 +482,7 @@ function slotsFromRecordLiteral(rec: Node): Record<string, WidgetNode[]> {
       i++;
     }
     if (label) {
-      const nodes = scanSequence(segment, false);
+      const nodes = scanSequence(segment, false, ctx);
       if (nodes.length > 0) addSlot(slots, label, nodes);
     }
   }
@@ -494,4 +524,48 @@ function isConstructorName(s: string): boolean {
   const core = s.replace(/^_+/, '');
   const c = core[0];
   return c !== undefined && c >= 'A' && c <= 'Z';
+}
+
+/**
+ * Private build-helper methods that return a widget subtree.
+ * Matches `_buildSomething` / `buildSomething` (optional leading underscore,
+ * followed by the word `build` and an uppercase letter or underscore).
+ */
+function isBuildHelperName(s: string): boolean {
+  return /^_?build[A-Z_]/.test(s);
+}
+
+/**
+ * Returns the function_body of the named method within a class body.
+ * The CST pairs a `method_signature` (or bare `function_signature`) with its
+ * immediately following `function_body` sibling — the same layout used by
+ * `build()` itself.
+ */
+function findMethodBody(classBody: Node, methodName: string): Node | undefined {
+  const kids = classBody.namedChildren;
+  for (let i = 0; i < kids.length; i++) {
+    const k = kids[i];
+    if (!k) continue;
+    const sig = k.type === 'method_signature' ? k.namedChildren[0] : k;
+    if (sig?.type !== 'function_signature') continue;
+    const id = sig.namedChildren.find((c) => c.type === 'identifier');
+    if (id?.text !== methodName) continue;
+    const next = kids[i + 1];
+    if (next?.type === 'function_body') return next;
+  }
+  return undefined;
+}
+
+/**
+ * Inlines the return tree of a build-helper method into the caller's slot.
+ * Guards against infinite expansion via the `expanding` set in `ctx`.
+ */
+function resolveHelperMethod(name: string, ctx: ScanCtx): WidgetNode[] {
+  if (!ctx.classBody || ctx.expanding.has(name)) return [];
+  const body = findMethodBody(ctx.classBody, name);
+  if (!body) return [];
+  ctx.expanding.add(name);
+  const roots = collectBuildRoots(body, ctx);
+  ctx.expanding.delete(name);
+  return roots;
 }

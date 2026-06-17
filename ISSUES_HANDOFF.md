@@ -440,8 +440,8 @@ Ordered by leverage and by how much each de-risks the next. Tasks within a group
 share a root cause and should land together.
 
 1. ~~**W3** — nested generic type args~~ ✅ DONE (commit `fefc8b0`) — `dart-idioms.ts::parseTypeArgList` groups `(type_identifier, type_arguments)` sibling pairs; both `widget-extractor.ts` and `riverpod-extractor.ts` updated. 116/116 tests pass.
-2. **B1 + B2 + B3 + W1 + W2** — the RC1 widget-tree rewrite (the core of the work) ← **NEXT**
-3. **W4 + N2** — dynamic-collection honesty (rides on the same code paths)
+2. ~~**B1 + B2 + B3 + W1 + W2**~~ ✅ DONE (commits `80114b7` + unstaged 2b/2c) — see Task 2 completion notes below.
+3. **W4 + N2** — dynamic-collection honesty (rides on the same code paths) ← **NEXT**
 4. **B6 + N1** — enum-value-arg capture + enum const resolution
 5. **B5** — block-body `create:` in wiring
 6. **B4** — collection-position generic mis-parse (hardest CST; do after the easy wins)
@@ -475,7 +475,45 @@ split on the **top-level commas only**; never on inner `<`/`>`.
 `... riverpod_app.dart` before/after. Add a unit assertion in
 `widget-extractor.test.ts` and `riverpod-extractor.test.ts`.
 
-### Task 2 — B1/B2/B3/W1/W2: return-driven, multi-branch widget tree
+### ~~Task 2 — B1/B2/B3/W1/W2: return-driven, multi-branch widget tree~~ ✅ DONE
+
+**Completion summary:**
+
+- **2a** — `collectBuildRoots()` replaces `scanSequence()[0]`. Finds all `return_statement` nodes via `findTopLevelReturns()` (stops at `function_expression` boundaries). Expands `conditional_expression` (ternary) and `switch_expression` into per-branch roots. Multiple roots are marked `branch: true`. `buildTree` is now `WidgetNode[]` throughout (`model/flutter.ts`, `get-widget-tree.ts`, `repro-widget-tree.ts`, tests, snapshots). Fixes B3, W1, W2. Committed `80114b7`.
+- **2b** — `RESOLVER_STATICS` set (`of`, `maybeOf`, `read`, `watch`, `select`) added to `dart-idioms.ts`. `parsePlainInvocation` rejects any call whose last name segment is in the set. Prevents `Foo.of(context)` masquerading as a widget when it appears directly in a return expression. **Uncommitted** (staged in `dart-idioms.ts`).
+- **2c+2d** — `ScanCtx { classBody, expanding }` threaded through all scan functions (`scanSequence`, `parsePlainInvocation`, `recoverGeneric`, `slotsFromArgs`, `slotsFromRecordLiteral`). `isBuildHelperName(/^_?build[A-Z_]/)` detects private helpers. `resolveHelperMethod` looks up the method body via `findMethodBody` and runs `collectBuildRoots` on it (recursion-guarded by `expanding`). Inlined roots inherit `isBuilderCallback` from the call site. Fixes B2. **Uncommitted** (staged in `widget-extractor.ts`).
+
+**Repro output after all sub-changes (all match the doc target):**
+```
+# ConditionalReturnField  → _DropdownField [branch] + _RadioField [branch]  ✅ B3
+# BuilderHelperField      → BlocProvider → Builder → Column → Text, Text    ✅ B2
+# ListenableField         → ListenableBuilder → Column → Text, Text          ✅ B1
+# EarlyReturnField        → SizedBox [branch] + ListView [branch]            ✅ B3 variant
+# MultiProviderScreen     → still has phantom providers                       ❌ B4 (Task 6)
+```
+
+**⚠️ 2b + 2c are uncommitted.** Commit them before starting Task 3.
+
+Suggested commit message for the pending changes:
+```
+fix(widget-tree): 2b+2c resolver-static filter and build-helper inlining
+
+2b: Add RESOLVER_STATICS to dart-idioms.ts (of/maybeOf/read/watch/select).
+parsePlainInvocation rejects calls whose last name segment is in the set,
+preventing Foo.of(context) from producing a phantom widget node.
+
+2c: Introduce ScanCtx {classBody, expanding} threaded through all scan
+functions. isBuildHelperName() matches _build[A-Z_] methods. When
+scanSequence encounters a matching identifier, resolveHelperMethod() looks
+up the body via findMethodBody() and inlines collectBuildRoots() — guarded
+against cycles by the expanding set. Inlined roots inherit isBuilderCallback
+from the call site. Fixes B2 (BuilderHelperField dead-end at Builder).
+```
+
+---
+
+### Original Task 2 plan (kept for reference)
+
 This is one rewrite of how a build body's **root(s)** are chosen, plus two
 descent rules. It is the heart of the work. Do it as four sub-changes against
 [src/extractors/widget-extractor.ts](src/extractors/widget-extractor.ts), verifying each with `repro-widget-tree.ts`.

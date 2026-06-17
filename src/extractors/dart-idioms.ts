@@ -7,6 +7,17 @@
 import type { Node } from 'web-tree-sitter';
 
 /**
+ * Method names that return a value rather than produce a widget.
+ *
+ * InheritedWidget / Provider lookup (`of`, `maybeOf`) and Riverpod ref
+ * accessors (`read`, `watch`, `select`) all follow the pattern
+ * `Foo.of(context)`, which is structurally identical to a named constructor
+ * `Foo.bar(args)` in the tree-sitter-dart CST. These names are used to
+ * reject such calls from widget detection.
+ */
+export const RESOLVER_STATICS = new Set(['of', 'maybeOf', 'read', 'watch', 'select']);
+
+/**
  * Parses the direct children of a `type_arguments` node into verbatim type-arg
  * strings, preserving nested generics.
  *
@@ -26,6 +37,7 @@ export function parseTypeArgList(typeArgumentsNode: Node): string[] {
   let i = 0;
   while (i < children.length) {
     const c = children[i];
+    if (!c) { i += 1; continue; }
     if (c.type === 'type_identifier' || c.type === 'identifier') {
       const next = children[i + 1];
       if (next?.type === 'type_arguments') {
