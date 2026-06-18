@@ -11,6 +11,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { ProjectIndex } from '../index/project-index.js';
+import { resolveClass } from '../index/resolve.js';
 import type { WidgetInfo, WidgetNode } from '../model/flutter.js';
 import { capLines, errorResult, textResult } from './format.js';
 
@@ -30,7 +31,9 @@ export function registerGetWidgetTree(
         'invocations it composes, indented by nesting, with type args and builder ' +
         'callbacks marked. Answers "what does widget X render / what is its layout" ' +
         'in one call instead of reading the build method. Tree is syntactic — ' +
-        'dynamically built children (loops/conditionals) are not unrolled.',
+        'dynamically built children (loops/conditionals) are not unrolled. ' +
+        'Set follow=true to inline-expand child widget classes and cross ' +
+        'StatefulWidget→State, so a shell widget resolves to its real tree in one call.',
       inputSchema: {
         widget: z.string().describe('Widget class name, e.g. "HomeScreen" or "ProfileView".'),
         depth: z
@@ -39,9 +42,16 @@ export function registerGetWidgetTree(
           .positive()
           .optional()
           .describe(`Max nesting depth to render (default ${String(DEFAULT_DEPTH)}).`),
+        follow: z
+          .boolean()
+          .optional()
+          .describe(
+            'Inline-expand leaf widgets that name another indexed widget class, ' +
+              "crossing StatefulWidget→State (default false = only this class's build()).",
+          ),
       },
     },
-    async ({ widget, depth }) => {
+    async ({ widget, depth, follow }) => {
       let index: ProjectIndex;
       try {
         index = await getIndex();
@@ -63,7 +73,7 @@ export function registerGetWidgetTree(
 
       const info = matches[0];
       if (!info) return errorResult('Widget resolution failed.');
-      return textResult(formatWidget(info, index, depth ?? DEFAULT_DEPTH).join('\n'));
+      return textResult(formatWidget(info, index, depth ?? DEFAULT_DEPTH, follow ?? false).join('\n'));
     },
   );
 }
@@ -78,12 +88,38 @@ function resolveWidgets(index: ProjectIndex, name: string): WidgetInfo[] {
   return out.sort((a, b) => a.symbolId.localeCompare(b.symbolId));
 }
 
-function formatWidget(info: WidgetInfo, index: ProjectIndex, maxDepth: number): string[] {
+/** Carries the resolution context a follow walk needs into the recursion. */
+interface RenderContext {
+  index: ProjectIndex;
+  follow: boolean;
+  /** Widget symbolIds on the current path — guards against build-tree cycles. */
+  visited: Set<string>;
+}
+
+function formatWidget(
+  info: WidgetInfo,
+  index: ProjectIndex,
+  maxDepth: number,
+  follow: boolean,
+): string[] {
   const lines: string[] = [];
   lines.push(`# Widget tree: ${info.name} (${info.flavor}) — ${info.file}:${String(info.line)}`);
   if (info.superclass) lines.push(`extends ${info.superclass}`);
 
-  if (!info.buildTree?.length) {
+  // A StatefulWidget holds no build() of its own; under follow, render its State
+  // class's tree in place rather than asking the caller to make a second call.
+  let roots = info.buildTree;
+  let from = info;
+  if (!roots?.length && follow && info.flavor === 'stateful') {
+    const state = stateClassOf(index, info.name);
+    if (state?.buildTree?.length) {
+      lines.push(`build() in State class ${state.name} — ${state.file}:${String(state.line)}`);
+      roots = state.buildTree;
+      from = state;
+    }
+  }
+
+  if (!roots?.length) {
     lines.push('');
     lines.push(noBuildTreeNote(info, index));
     return lines;
@@ -91,8 +127,13 @@ function formatWidget(info: WidgetInfo, index: ProjectIndex, maxDepth: number): 
 
   lines.push('');
   const body: string[] = [];
-  for (const root of info.buildTree) {
-    renderNode(root, undefined, 0, maxDepth, body);
+  const ctx: RenderContext = {
+    index,
+    follow,
+    visited: new Set([info.symbolId, from.symbolId]),
+  };
+  for (const root of roots) {
+    renderNode(root, undefined, 0, maxDepth, body, ctx);
   }
   lines.push(...capLines(body, MAX_LINES, 'increase specificity or lower depth='));
   lines.push('');
@@ -107,6 +148,7 @@ function renderNode(
   depth: number,
   maxDepth: number,
   out: string[],
+  ctx: RenderContext,
 ): void {
   const indent = '  '.repeat(depth);
   const head = node.typeArgs ? `${node.widget}<${node.typeArgs.join(', ')}>` : node.widget;
@@ -118,22 +160,76 @@ function renderNode(
   if (node.dynamic === 'spread') tags.push('spread (dynamic)');
   if (node.isBuilderCallback) tags.push('builder');
   if (node.recoveredFromMisparse) tags.push('generic recovered from mis-parse — slots best-effort');
+
+  const staticChildren = Object.entries(node.namedSlots).filter(([, arr]) => arr.length > 0);
+
+  // Only a leaf is followed: a node with literal children already shows its tree,
+  // and the syntactic output stays whatever build() wrote at the call site.
+  let followed: FollowTarget | undefined;
+  if (ctx.follow && staticChildren.length === 0) {
+    const target = followTarget(ctx.index, node.widget);
+    if (target && !ctx.visited.has(target.from.symbolId)) {
+      followed = target;
+      tags.push(`follows ${target.from.name} — ${target.from.file}:${String(target.from.line)}`);
+    }
+  }
+
   const tagText = tags.length > 0 ? `  [${tags.join('; ')}]` : '';
   out.push(`${indent}${prefix}${head} — :${String(node.line)}${tagText}`);
 
+  const children = followed
+    ? followed.roots.map((root) => ['(positional)', root] as const)
+    : staticChildren.flatMap(([label, arr]) => arr.map((c) => [label, c] as const));
+
   if (depth + 1 > maxDepth) {
-    const childCount = Object.values(node.namedSlots).reduce((n, arr) => n + arr.length, 0);
-    if (childCount > 0) {
-      out.push(`${indent}  … ${String(childCount)} child widget(s) — raise depth= to expand`);
+    if (children.length > 0) {
+      out.push(`${indent}  … ${String(children.length)} child widget(s) — raise depth= to expand`);
     }
     return;
   }
 
-  for (const [label, children] of Object.entries(node.namedSlots)) {
-    for (const child of children) {
-      renderNode(child, label === '(positional)' ? undefined : label, depth + 1, maxDepth, out);
-    }
+  // A followed subtree comes from another class; record it so a build-tree cycle
+  // (A builds B builds A) terminates instead of recursing forever.
+  const childCtx = followed
+    ? { ...ctx, visited: new Set(ctx.visited).add(followed.from.symbolId) }
+    : ctx;
+  for (const [label, child] of children) {
+    renderNode(child, label === '(positional)' ? undefined : label, depth + 1, maxDepth, out, childCtx);
   }
+}
+
+interface FollowTarget {
+  /** The indexed widget whose build tree is being inlined. */
+  from: WidgetInfo;
+  roots: WidgetNode[];
+}
+
+/**
+ * Resolves a leaf constructor name to the build tree of the widget it names,
+ * crossing a StatefulWidget to the State class that actually holds build().
+ * Resolution goes through the shared seam (deterministic across duplicate
+ * names); a name that is not an indexed widget, or one with no static tree,
+ * returns undefined so the leaf stays as written rather than a guessed expansion.
+ */
+function followTarget(index: ProjectIndex, name: string): FollowTarget | undefined {
+  const sym = resolveClass(index, name);
+  if (!sym) return undefined;
+  const target = index.widgets.get(sym.id);
+  if (!target) return undefined;
+  if (target.buildTree?.length) return { from: target, roots: target.buildTree };
+  if (target.flavor === 'stateful') {
+    const state = stateClassOf(index, target.name);
+    if (state?.buildTree?.length) return { from: state, roots: state.buildTree };
+  }
+  return undefined;
+}
+
+/** The State class for a StatefulWidget: a 'state' widget whose superclass names it. */
+function stateClassOf(index: ProjectIndex, statefulName: string): WidgetInfo | undefined {
+  for (const w of index.widgets.values()) {
+    if (w.flavor === 'state' && w.superclass?.includes(`<${statefulName}>`)) return w;
+  }
+  return undefined;
 }
 
 /**
@@ -142,10 +238,9 @@ function renderNode(
  */
 function noBuildTreeNote(info: WidgetInfo, index: ProjectIndex): string {
   if (info.flavor === 'stateful') {
-    for (const w of index.widgets.values()) {
-      if (w.flavor === 'state' && w.superclass?.includes(`<${info.name}>`)) {
-        return `No build() here — ${info.name} is a StatefulWidget. Its build tree is in its State class '${w.name}'. Call get_widget_tree with widget="${w.name}".`;
-      }
+    const state = stateClassOf(index, info.name);
+    if (state) {
+      return `No build() here — ${info.name} is a StatefulWidget. Its build tree is in its State class '${state.name}'. Call get_widget_tree with widget="${state.name}" (or pass follow=true).`;
     }
     return `No build() here — ${info.name} is a StatefulWidget; its build tree lives in a separate State class (not found in the index).`;
   }
