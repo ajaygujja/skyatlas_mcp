@@ -19,7 +19,9 @@ async function main(): Promise<void> {
   const target = process.argv[2];
   const which = process.argv[3] ?? 'all';
   if (!target) {
-    process.stderr.write('usage: repro-extract.ts <file.dart> [routes|providers|blocs|widgets|consts|all]\n');
+    process.stderr.write(
+      'usage: repro-extract.ts <file.dart> [routes|providers|blocs|widgets|consts|all]\n',
+    );
     process.exit(1);
   }
   const source = readFileSync(target, 'utf8');

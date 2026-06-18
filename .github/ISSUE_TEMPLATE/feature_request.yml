@@ -1,0 +1,27 @@
+name: Feature request
+description: Propose a new tool, a new Flutter-domain graph, or an improvement.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What repo-structure question can't you answer in one tool call today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What tool / output / behavior would solve it? Sketch the call and the shape of the result.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Existing tools or workarounds you tried, and why they fall short.
+    validations:
+      required: false

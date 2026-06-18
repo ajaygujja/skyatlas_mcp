@@ -88,8 +88,8 @@ function extractEnum(node: Node, out: StringConsts): void {
     out[`${enumName}.${valueName}.name`] = valueName;
 
     // B6: positional string args mapped to ctor param names.
-    const args = ctor
-      .namedChildren.find((c) => c.type === 'argument_part')
+    const args = ctor.namedChildren
+      .find((c) => c.type === 'argument_part')
       ?.namedChildren.find((c) => c.type === 'arguments');
     if (!args) continue;
     let pos = 0;

@@ -210,7 +210,11 @@ function findTopLevelReturns(node: Node): Node[] {
  * the first construction found carries `isBuilderCallback`. It does NOT
  * propagate into that construction's own slots (reset there to false).
  */
-function scanSequence(kids: readonly (Node | null)[], inBuilder: boolean, ctx: ScanCtx): WidgetNode[] {
+function scanSequence(
+  kids: readonly (Node | null)[],
+  inBuilder: boolean,
+  ctx: ScanCtx,
+): WidgetNode[] {
   const out: WidgetNode[] = [];
   let i = 0;
   while (i < kids.length) {
@@ -227,7 +231,10 @@ function scanSequence(kids: readonly (Node | null)[], inBuilder: boolean, ctx: S
       const nextI = kids[i + 1]?.type === 'selector' ? i + 2 : i + 1;
       const inlined = resolveHelperMethod(child.text, ctx);
       if (inlined.length > 0) {
-        if (inBuilder) { const first = inlined[0]; if (first) first.isBuilderCallback = true; }
+        if (inBuilder) {
+          const first = inlined[0];
+          if (first) first.isBuilderCallback = true;
+        }
         out.push(...inlined);
       }
       i = nextI;
@@ -415,8 +422,12 @@ function recoverGeneric(
     let seenOp = false;
     for (const c of innerRel.namedChildren) {
       if (c === widgetId) continue;
-      if (c.type === 'relational_operator') { seenOp = true; continue; }
-      if (seenOp && (c.type === 'identifier' || c.type === 'type_identifier')) outerTypeArgs.push(c.text);
+      if (c.type === 'relational_operator') {
+        seenOp = true;
+        continue;
+      }
+      if (seenOp && (c.type === 'identifier' || c.type === 'type_identifier'))
+        outerTypeArgs.push(c.text);
     }
     const outerRecord = rel0.namedChildren.find((c) => c.type === 'record_literal');
     const outerNode: WidgetNode = {
@@ -496,7 +507,10 @@ function recoverGeneric(
  * named slot spills its continuation (more type args + the real `record_literal`)
  * into FOLLOWING sibling `argument` nodes at THIS level — see recoverGeneric.
  */
-function slotsFromArgs(argKids: readonly (Node | null)[], ctx: ScanCtx): Record<string, WidgetNode[]> {
+function slotsFromArgs(
+  argKids: readonly (Node | null)[],
+  ctx: ScanCtx,
+): Record<string, WidgetNode[]> {
   const slots: Record<string, WidgetNode[]> = {};
   let i = 0;
   while (i < argKids.length) {
@@ -628,11 +642,13 @@ function isMisparsedGeneric(n: Node): boolean {
   const first = n.namedChildren[0];
   const op = n.namedChildren.find((c) => c.type === 'relational_operator');
   // Flat pattern: Widget < TypeArg  (op is '<')
-  if (first?.type === 'identifier' && isConstructorName(first.text) && op?.text === '<') return true;
+  if (first?.type === 'identifier' && isConstructorName(first.text) && op?.text === '<')
+    return true;
   // Nested pattern: (Widget < TypeArg) > record_literal  (op is '>').
   // The grammar wraps the flat mis-parse in a second relational_expression when
   // the constructor sits inside a collection literal.
-  if (first?.type === 'relational_expression' && isMisparsedGeneric(first) && op?.text === '>') return true;
+  if (first?.type === 'relational_expression' && isMisparsedGeneric(first) && op?.text === '>')
+    return true;
   return false;
 }
 

@@ -191,7 +191,9 @@ describe('extractSymbols', () => {
       const lt = all.find((s) => s.qualifiedName === 'Box.operator <');
       expect(lt?.kind).toBe('method');
       expect(lt?.returnType).toBe('bool');
-      expect(lt?.parameters).toEqual([{ name: 'other', type: 'Box<T>', named: false, required: true }]);
+      expect(lt?.parameters).toEqual([
+        { name: 'other', type: 'Box<T>', named: false, required: true },
+      ]);
 
       const index = all.find((s) => s.qualifiedName === 'Box.operator []');
       expect(index?.kind).toBe('method');

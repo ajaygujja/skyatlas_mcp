@@ -338,8 +338,7 @@ function operatorSymbol(
 
   // Anchor the symbol's range/nameRange on the operator token when present,
   // else on the signature node itself.
-  const anchor =
-    signature.namedChildren.find((c) => c.type === 'binary_operator') ?? signature;
+  const anchor = signature.namedChildren.find((c) => c.type === 'binary_operator') ?? signature;
   const sym = leafSymbol(outer, anchor, 'method', relPath, parent);
   sym.name = name;
   sym.qualifiedName = parent ? `${parent.qualifiedName}.${name}` : name;
@@ -351,7 +350,10 @@ function operatorSymbol(
   const bodyModifier = parseBodyModifier(followingBody);
   if (bodyModifier) sym.modifiers.push(bodyModifier);
   const paramList = signature.namedChildren.find((c) => c.type === 'formal_parameter_list');
-  const returnType = parseLeadingType(signature, anchor !== signature ? anchor : (paramList ?? signature));
+  const returnType = parseLeadingType(
+    signature,
+    anchor !== signature ? anchor : (paramList ?? signature),
+  );
   if (returnType) sym.returnType = returnType;
   const parameters = parseParameters(signature);
   if (parameters) sym.parameters = parameters;

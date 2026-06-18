@@ -1,4 +1,9 @@
-# skyatlas_mcp
+# skyatlas-mcp
+
+[![npm version](https://img.shields.io/npm/v/skyatlas-mcp.svg)](https://www.npmjs.com/package/skyatlas-mcp)
+[![CI](https://github.com/ajaygujja/skyatlas_mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/ajaygujja/skyatlas_mcp/actions/workflows/ci.yml)
+[![license: MIT](https://img.shields.io/npm/l/skyatlas-mcp.svg)](LICENSE)
+[![node](https://img.shields.io/node/v/skyatlas-mcp.svg)](package.json)
 
 **A Flutter-aware repo map for Claude and Cursor — it complements the official Dart MCP server.**
 
@@ -19,8 +24,8 @@ It is **read-only**, runs **entirely on your machine**, and makes **no network c
 
 ## Requirements
 
-- **Node ≥ 20** (LTS). The parser is WASM (`web-tree-sitter`), so there is **no native build** —
-  it installs first-try on macOS, Linux, Windows, and ARM.
+- **Node ≥ 22** (Active LTS). The parser is WASM (`web-tree-sitter`), so there is **no native
+  build** — it installs first-try on macOS, Linux, Windows, and ARM.
 - **Dart syntax** is parsed through a vendored, pinned `tree-sitter-dart` grammar. It supports
   Dart 3.x through dot shorthands, records, patterns, class modifiers, extension types, and
   digit separators. The exact pinned grammar commit and build provenance are recorded in
@@ -32,32 +37,22 @@ It is **read-only**, runs **entirely on your machine**, and makes **no network c
 
 ## Install
 
-### 1. Build from a clone
+No install step is required — `npx` fetches and runs the published package. The workspace root to
+index is **`argv[2]`**: pass the absolute path to the Flutter repo you want mapped (not the path to
+this server). The grammar `.wasm` ships inside the package and is resolved by absolute path at
+runtime, so it works from any cwd.
 
-```bash
-git clone <repo-url> skyatlas_mcp
-cd skyatlas_mcp
-pnpm install
-pnpm build          # emits dist/ ; the WASM grammar is already vendored under vendor/
-```
-
-`pnpm build` is the only step — the grammar `.wasm` is checked into `vendor/` and resolved by an
-absolute path at runtime, so `node dist/server.js` works from any cwd.
-
-### 2. Register with Claude Code
-
-The workspace root to index is **`argv[2]`** — pass the absolute path to the Flutter repo you
-want mapped (not the path to this server).
+### 1. Register with Claude Code
 
 ```bash
 # Available in every project on this machine:
-claude mcp add skyatlas -- node /abs/path/to/skyatlas_mcp/dist/server.js /abs/path/to/your-flutter-repo
+claude mcp add skyatlas -- npx -y skyatlas-mcp /abs/path/to/your-flutter-repo
 
 # Or scoped to the current repo only (writes .mcp.json in the repo, shareable with teammates):
-claude mcp add skyatlas -s project -- node /abs/path/to/skyatlas_mcp/dist/server.js .
+claude mcp add skyatlas -s project -- npx -y skyatlas-mcp .
 ```
 
-### 3. Register with Cursor
+### 2. Register with Cursor
 
 Add to `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (per-project):
 
@@ -65,14 +60,14 @@ Add to `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (per-project):
 {
   "mcpServers": {
     "skyatlas": {
-      "command": "node",
-      "args": ["/abs/path/to/skyatlas_mcp/dist/server.js", "/abs/path/to/your-flutter-repo"]
+      "command": "npx",
+      "args": ["-y", "skyatlas-mcp", "/abs/path/to/your-flutter-repo"]
     }
   }
 }
 ```
 
-### 4. Gitignore the cache in the _target_ repo
+### 3. Gitignore the cache in the _target_ repo
 
 The server writes a warm-start cache to `.skyatlas/cache.json` **inside the repo it indexes**.
 Add this to that repo's `.gitignore`:
@@ -116,7 +111,7 @@ the exact `file:line` to the Dart server (or your editor) for resolved semantics
 
 ```bash
 claude mcp add dart -- dart mcp-server          # the microscope (Dart SDK ≥ 3.9)
-claude mcp add skyatlas -- node /abs/path/to/skyatlas_mcp/dist/server.js /abs/path/to/your-flutter-repo
+claude mcp add skyatlas -- npx -y skyatlas-mcp /abs/path/to/your-flutter-repo
 ```
 
 ---
@@ -200,6 +195,28 @@ file re-indexes in well under 50 ms, with no restart.
   All logs are structured JSON on stderr.
 - **A file shows a syntax error in the health line** — that's a parse error localized to one file
   (often new Dart syntax the pinned grammar doesn't yet cover); the rest of the repo still indexes.
+
+---
+
+## From source
+
+To hack on the server, run the `doctor`/`benchmark` scripts, or pin an unpublished build:
+
+```bash
+git clone https://github.com/ajaygujja/skyatlas_mcp.git
+cd skyatlas_mcp
+pnpm install
+pnpm build          # emits dist/ ; the WASM grammar is already vendored under vendor/
+```
+
+Then register the local build instead of the npm package:
+
+```bash
+claude mcp add skyatlas -- node /abs/path/to/skyatlas_mcp/dist/server.js /abs/path/to/your-flutter-repo
+```
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the working rules and [`docs/GUIDE.md`](docs/GUIDE.md)
+for the full guide.
 
 ---
 

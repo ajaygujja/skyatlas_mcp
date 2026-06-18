@@ -1,0 +1,57 @@
+name: Publish
+
+# Triggered by a version tag (e.g. v0.2.0) pushed by `npm version`.
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Serialize publishes for a given tag.
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    # Required reviewers on the npm-publish environment gate every release on
+    # a human approval (Settings → Environments → npm-publish).
+    environment:
+      name: npm-publish
+      url: https://www.npmjs.com/package/skyatlas-mcp
+
+    # id-token: write authorizes OIDC trusted publishing and provenance signing.
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+
+      # Trusted publishing requires npm >= 11.5.1; Node 22 ships an older npm.
+      - run: npm install -g npm@latest
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Verify tag matches package version
+        run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::tag $TAG_VERSION != package.json $PKG_VERSION"
+            exit 1
+          fi
+
+      # prepublishOnly runs lint + build + test; OIDC supplies the credential,
+      # so no NPM_TOKEN secret exists. --provenance attaches a signed
+      # build-origin attestation.
+      - run: npm publish --provenance --access public

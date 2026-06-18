@@ -164,7 +164,7 @@ on tool call:  validate input → query index → format compact markdown → re
 | Validation | Zod v4 | Native `inputSchema` support in MCP SDK | — |
 | Tests | Vitest | Fast, TS-native | — |
 | Lint/format | ESLint (typescript-eslint, strict) + Prettier | Industry default | — |
-| Node version | ≥ 20 LTS | WASM + SDK requirements | — |
+| Node version | ≥ 22 LTS | WASM + SDK + pnpm requirements | — |
 | Package manager | pnpm | Fast, strict node_modules | — |
 
 **Storage scaling thresholds (when the in-memory decision changes):** ~1,000 files ≈ 10–25 MB
@@ -624,7 +624,7 @@ Roughly in expected-value order. Ship v1 first; let real team usage pick what's 
 1. **npm registry** — package name reserved early; publish with `bin` entry so users run it
    without installing:
    ```bash
-   claude mcp add skyatlas -- npx -y skyatlas_mcp
+   claude mcp add skyatlas -- npx -y skyatlas-mcp
    ```
    That one line is the entire install story. The WASM parser choice (§4.3) is what makes this
    work first-try on macOS/Windows/Linux/ARM — protect that property in every dependency decision.

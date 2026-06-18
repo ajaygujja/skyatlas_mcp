@@ -134,7 +134,12 @@ describe('extractWidgets', () => {
     const widgets = extractWidgets(tree, 'fixtures/stress/widgets_hard.dart');
     const column = widgets.find((w) => w.name === 'CollectionIfChildren')?.buildTree?.[0];
     const children = column?.namedSlots['children'] ?? [];
-    expect(children.map((c) => c.widget)).toEqual(['Header', 'Banner', '...footerWidgets', 'Footer']);
+    expect(children.map((c) => c.widget)).toEqual([
+      'Header',
+      'Banner',
+      '...footerWidgets',
+      'Footer',
+    ]);
     const banner = children.find((c) => c.widget === 'Banner');
     expect(banner?.conditional).toBe(true);
     // Plain siblings are not marked conditional.
