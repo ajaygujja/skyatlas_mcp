@@ -43,6 +43,18 @@ export function registerFindSymbol(server: McpServer, getIndex: () => Promise<Pr
           .boolean()
           .optional()
           .describe('Also search *.g.dart / *.freezed.dart / *.gr.dart files.'),
+        match: z
+          .enum(['exact', 'prefix', 'suffix', 'substring', 'regex'])
+          .optional()
+          .describe(
+            'How query matches names (default substring). Use suffix for "ends in X" ' +
+              '(e.g. Repository without RepositoryImpl), exact/prefix for anchored names, ' +
+              'regex for a custom pattern.',
+          ),
+        countOnly: z
+          .boolean()
+          .optional()
+          .describe('Return only the match count, skipping the per-symbol listing.'),
         offset: z
           .number()
           .int()
@@ -53,11 +65,21 @@ export function registerFindSymbol(server: McpServer, getIndex: () => Promise<Pr
           ),
       },
     },
-    async ({ query, kind, package: pkg, includeGenerated, offset }) => {
+    async ({ query, kind, package: pkg, includeGenerated, match, countOnly, offset }) => {
       // Schema permits any string so the empty case yields a friendly hint
       // rather than a raw Zod min-length validation error at the SDK layer.
       if (query.trim().length === 0) {
         return textResult('Provide a name or fragment to search for, e.g. "UserBloc" or "user".');
+      }
+
+      // Validate the pattern here so a bad regex returns a friendly hint instead
+      // of throwing out of findByName's compile.
+      if (match === 'regex') {
+        try {
+          new RegExp(query);
+        } catch (err) {
+          return textResult(`'${query}' is not a valid regex: ${String(err)}`);
+        }
       }
 
       let index: ProjectIndex;
@@ -71,7 +93,13 @@ export function registerFindSymbol(server: McpServer, getIndex: () => Promise<Pr
       if (kind) opts.kind = kind;
       if (pkg) opts.pkg = pkg;
       if (includeGenerated !== undefined) opts.includeGenerated = includeGenerated;
+      if (match) opts.match = match;
       const matches = index.findByName(query, opts);
+
+      if (countOnly) {
+        const filterText = `${kind ? ` kind=${kind}` : ''}${pkg ? ` package=${pkg}` : ''}`;
+        return textResult(`${String(matches.length)} match(es) for '${query}'${filterText}.`);
+      }
 
       if (matches.length === 0) {
         const filters = [kind && `kind=${kind}`, pkg && `package=${pkg}`]
