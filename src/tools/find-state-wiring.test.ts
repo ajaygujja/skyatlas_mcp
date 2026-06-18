@@ -55,6 +55,17 @@ describe('find_state_wiring (formatted response)', () => {
     expect(text).toContain('Connections are syntactic name-matches, not type-resolved.');
   });
 
+  it('resolves a duplicate-named dependency to the file the caller imports', async () => {
+    const text = await callWiring({ screen: 'CounterScreen' });
+    // CounterRepository is declared in both aux_repository.dart (lower symbol id)
+    // and repositories.dart; the cubit imports the latter, so the chain follows
+    // the import rather than the lexicographically-first declaration.
+    expect(text).toContain(
+      'repo _repo: CounterRepository — repositories.dart:3 (via counter_cubit.dart:8, syntactic)',
+    );
+    expect(text).not.toContain('aux_repository.dart');
+  });
+
   it('reaches a stateful screen via its State<Screen> companion', async () => {
     const text = await callWiring({ screen: 'ProfileScreen' });
     // The read happens in _ProfileScreenState; wiring still attributes it to the screen.

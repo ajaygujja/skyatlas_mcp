@@ -395,7 +395,7 @@ function repoDepsOf(index: ProjectIndex, blocSymbolId: string, maxDepth: number)
     const consider = (member: string, typeText: string, via: Loc): void => {
       if (seenMembers.has(member)) return;
       const typeName = baseTypeName(typeText);
-      const cls = resolveClass(index, typeName);
+      const cls = resolveClass(index, typeName, { fromFile: via.file });
       if (!cls || !CONTAINER_KINDS.has(cls.kind) || seenClasses.has(cls.id)) return;
       seenMembers.add(member);
       seenClasses.add(cls.id);
