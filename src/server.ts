@@ -90,10 +90,18 @@ async function main(): Promise<void> {
       .finally(() => process.exit(0));
   };
 
-  process.stdin.on('end', () => shutdown('stdin ended'));
-  process.stdin.on('close', () => shutdown('stdin closed'));
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
-  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.stdin.on('end', () => {
+    shutdown('stdin ended');
+  });
+  process.stdin.on('close', () => {
+    shutdown('stdin closed');
+  });
+  process.on('SIGTERM', () => {
+    shutdown('SIGTERM');
+  });
+  process.on('SIGINT', () => {
+    shutdown('SIGINT');
+  });
 }
 
 // Run only when executed as the CLI entrypoint — importing this module (e.g. for
