@@ -17,12 +17,9 @@
  * demand (§9.5 lazy), so there is no cache field and no version bump.
  */
 import type { ProjectIndex } from './project-index.js';
-import type { Symbol } from '../model/symbol.js';
 import type { EdgeConfidence, EdgeKind, RouteInfo } from '../model/flutter.js';
 import { detectStack } from './stack-detect.js';
-
-/** Container declarations a bare name can resolve to. */
-const CONTAINER_KINDS = new Set(['class', 'mixin', 'enum', 'extension', 'extensionType']);
+import { CONTAINER_KINDS, resolveClass } from './resolve.js';
 
 /** Edge kinds that connect a screen to its state (the outgoing wiring set). */
 const WIRING_KINDS = new Set<EdgeKind>(['createsBloc', 'readsBloc', 'watchesProvider']);
@@ -353,22 +350,6 @@ function resolveProvider(index: ProjectIndex, name: string): ResolvedTarget | un
     if (index.symbolsById.has(fieldId)) target.symbolId = fieldId;
   }
   return target;
-}
-
-/** A class/mixin/etc declaration matching `name`, deterministic across duplicates. */
-function resolveClass(index: ProjectIndex, name: string): Symbol | undefined {
-  const ids = index.byName.get(name);
-  if (!ids) return undefined;
-  const containers: Symbol[] = [];
-  let fallback: Symbol | undefined;
-  for (const id of ids) {
-    const sym = index.symbolsById.get(id);
-    if (!sym) continue;
-    if (CONTAINER_KINDS.has(sym.kind)) containers.push(sym);
-    else fallback ??= sym;
-  }
-  containers.sort((a, b) => a.id.localeCompare(b.id));
-  return containers[0] ?? fallback;
 }
 
 /**
