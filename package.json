@@ -25,7 +25,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "prepublishOnly": "pnpm run lint && pnpm run test && pnpm run build",
+    "prepublishOnly": "pnpm run lint && pnpm run build && pnpm run test",
     "dev": "tsc -p tsconfig.build.json --watch",
     "test": "vitest run",
     "test:watch": "vitest",

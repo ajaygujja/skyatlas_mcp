@@ -1,13 +1,12 @@
 name: Publish
 
-# Fires only when you push a version tag (created by `npm version`), e.g. v0.2.0.
-# Nothing publishes on normal pushes or PRs.
+# Triggered by a version tag (e.g. v0.2.0) pushed by `npm version`.
 on:
   push:
     tags:
       - 'v*'
 
-# Never let two publishes race for the same tag.
+# Serialize publishes for a given tag.
 concurrency:
   group: publish-${{ github.ref }}
   cancel-in-progress: false
@@ -16,13 +15,13 @@ jobs:
   publish:
     runs-on: ubuntu-latest
 
-    # Gated environment: add required reviewers in
-    # Settings → Environments → npm-publish so a tag push waits for human approval.
+    # Required reviewers on the npm-publish environment gate every release on
+    # a human approval (Settings → Environments → npm-publish).
     environment:
       name: npm-publish
       url: https://www.npmjs.com/package/skyatlas-mcp
 
-    # Least privilege. id-token: write is required for npm provenance (OIDC signing).
+    # id-token: write authorizes OIDC trusted publishing and provenance signing.
     permissions:
       contents: read
       id-token: write
@@ -38,9 +37,11 @@ jobs:
           registry-url: https://registry.npmjs.org
           cache: pnpm
 
+      # Trusted publishing requires npm >= 11.5.1; Node 22 ships an older npm.
+      - run: npm install -g npm@latest
+
       - run: pnpm install --frozen-lockfile
 
-      # Refuse to publish if the git tag doesn't match the package.json version.
       - name: Verify tag matches package version
         run: |
           PKG_VERSION="$(node -p "require('./package.json').version")"
@@ -50,12 +51,7 @@ jobs:
             exit 1
           fi
 
-      - run: pnpm run lint
-      - run: pnpm run test
-      - run: pnpm run build
-
-      # --provenance attaches a signed, verifiable "built from this repo+commit" attestation.
-      - name: Publish to npm
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # prepublishOnly runs lint + build + test; OIDC supplies the credential,
+      # so no NPM_TOKEN secret exists. --provenance attaches a signed
+      # build-origin attestation.
+      - run: npm publish --provenance --access public
