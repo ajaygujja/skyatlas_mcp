@@ -58,6 +58,14 @@ export function signatureText(sym: Symbol): string {
   else if (sym.kind === 'setter') parts.push(`set ${sym.name.replace(/=$/, '')}`);
   else {
     let name = sym.name;
+    // Named constructors drop the class name (`fromJson` vs `User.fromJson`);
+    // restore it from the qualified name so the signature reads like Dart source.
+    // The default constructor's name already equals the class — leave it alone.
+    if (sym.kind === 'constructor') {
+      const segments = sym.qualifiedName.split('.');
+      const className = segments[segments.length - 2];
+      if (className && className !== sym.name) name = `${className}.${name}`;
+    }
     if (sym.typeParameters) name += `<${sym.typeParameters.join(', ')}>`;
     parts.push(name);
   }

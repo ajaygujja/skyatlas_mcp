@@ -43,7 +43,7 @@ export function registerFindSymbol(server: McpServer, getIndex: () => Promise<Pr
         'Use this INSTEAD of grep when looking for where something is declared. ' +
         'Generated files (*.g.dart etc.) are excluded unless includeGenerated=true.',
       inputSchema: {
-        query: z.string().min(1).describe('Name or name fragment, e.g. "UserBloc" or "user".'),
+        query: z.string().describe('Name or name fragment, e.g. "UserBloc" or "user".'),
         kind: z.enum(SYMBOL_KINDS).optional().describe('Restrict to one symbol kind.'),
         package: z.string().optional().describe('Restrict to one package (pubspec name).'),
         includeGenerated: z
@@ -53,6 +53,12 @@ export function registerFindSymbol(server: McpServer, getIndex: () => Promise<Pr
       },
     },
     async ({ query, kind, package: pkg, includeGenerated }) => {
+      // Schema permits any string so the empty case yields a friendly hint
+      // rather than a raw Zod min-length validation error at the SDK layer.
+      if (query.trim().length === 0) {
+        return textResult('Provide a name or fragment to search for, e.g. "UserBloc" or "user".');
+      }
+
       let index: ProjectIndex;
       try {
         index = await getIndex();

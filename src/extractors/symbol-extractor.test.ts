@@ -4,9 +4,11 @@ import { fileURLToPath } from 'node:url';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { initParser, parseFile } from '../parser/parser.js';
 import { extractSymbols, type ExtractionResult } from './symbol-extractor.js';
+import { signatureText } from '../tools/format.js';
 import type { Symbol } from '../model/symbol.js';
 
 const FIXTURES = fileURLToPath(new URL('../../fixtures/basic', import.meta.url));
+const STRESS = fileURLToPath(new URL('../../fixtures/stress', import.meta.url));
 
 beforeAll(async () => {
   await initParser();
@@ -15,6 +17,11 @@ beforeAll(async () => {
 async function extractFixture(name: string): Promise<ExtractionResult> {
   const { tree } = await parseFile(resolve(FIXTURES, name));
   return extractSymbols(tree, `fixtures/basic/${name}`);
+}
+
+async function extractStress(name: string): Promise<ExtractionResult> {
+  const { tree } = await parseFile(resolve(STRESS, name));
+  return extractSymbols(tree, `fixtures/stress/${name}`);
 }
 
 function flatten(symbols: Symbol[]): Symbol[] {
@@ -168,6 +175,48 @@ describe('extractSymbols', () => {
         { name: 'callback', type: 'void Function(int)', named: false, required: true },
         { name: 'label', type: 'String?', named: false, required: false },
       ]);
+    });
+  });
+
+  describe('tricky declarations (symbols_hard.dart)', () => {
+    let all: Symbol[];
+
+    beforeAll(async () => {
+      const { symbols } = await extractStress('symbols_hard.dart');
+      all = flatten(symbols);
+    });
+
+    // S1 — operator overloads were previously dropped entirely.
+    it('extracts operator overloads as method symbols', () => {
+      const lt = all.find((s) => s.qualifiedName === 'Box.operator <');
+      expect(lt?.kind).toBe('method');
+      expect(lt?.returnType).toBe('bool');
+      expect(lt?.parameters).toEqual([{ name: 'other', type: 'Box<T>', named: false, required: true }]);
+
+      const index = all.find((s) => s.qualifiedName === 'Box.operator []');
+      expect(index?.kind).toBe('method');
+      expect(index?.returnType).toBe('T');
+      expect(index?.parameters).toEqual([{ name: 'i', type: 'int', named: false, required: true }]);
+    });
+
+    // S2 — `mixin class` was mis-kinded as `class`.
+    it('reports `mixin class` as kind mixin', () => {
+      const loggable = all.find((s) => s.name === 'Loggable');
+      expect(loggable?.kind).toBe('mixin');
+    });
+  });
+
+  describe('signature rendering', () => {
+    it('prepends the class name to named/factory constructors', async () => {
+      const { symbols } = await extractFixture('user_model.dart');
+      const all = flatten(symbols);
+      const fromJson = all.find((s) => s.qualifiedName === 'User.fromJson');
+      expect(fromJson && signatureText(fromJson)).toMatch(/^factory User\.fromJson\(/);
+      // The default constructor keeps the bare class name (no `User.User`).
+      const ctor = all.find((s) => s.qualifiedName === 'User.User');
+      const rendered = ctor && signatureText(ctor);
+      expect(rendered).toContain('User(');
+      expect(rendered).not.toContain('User.User');
     });
   });
 
