@@ -1,0 +1,48 @@
+name: Bug report
+description: Something parsed wrong, a tool returned bad data, or the server misbehaved.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. skyatlas-mcp is read-only and runs locally, so the
+        most useful thing you can give us is a **minimal Dart/Flutter snippet** that
+        reproduces the wrong output.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did the tool return, and what did you expect instead?
+      placeholder: "get_widget_tree returned an empty tree for a widget that has a build() method."
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal repro
+      description: The smallest Dart source that triggers it, plus the exact tool call (name + args).
+      render: dart
+    validations:
+      required: true
+
+  - type: input
+    id: tool
+    attributes:
+      label: Which tool / MCP client
+      placeholder: "get_widget_tree via Claude Desktop"
+    validations:
+      required: true
+
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: Run `pnpm doctor` (or `npx skyatlas-mcp` + the doctor script) and paste output. Include OS and Node version.
+      placeholder: |
+        skyatlas-mcp 0.1.0
+        Node v20.x, macOS 15
+        grammar: <vendor/GRAMMAR_VERSION>
+    validations:
+      required: true
