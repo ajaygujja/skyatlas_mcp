@@ -18,18 +18,36 @@
  * selector between the identifier and the argument selector; argsOfCall skips it.
  */
 import type { Node, Tree } from 'web-tree-sitter';
-import type { DynamicRouteNote, RouteInfo } from '../model/flutter.js';
+import type { DynamicRouteNote, RouteInfo, RouterGuardNote } from '../model/flutter.js';
 
 export interface RouteExtraction {
   /** Top-level routes (forest); nested routes hang off `children`. */
   routes: RouteInfo[];
   /** Route tables the syntax layer cannot enumerate — honest absence (§12). */
   dynamic: DynamicRouteNote[];
+  /** Router-level guards (go_router global `redirect:`), one per router. */
+  routerGuards: RouterGuardNote[];
 }
 
 /** go_router route constructors. Shells carry no own path. */
 const GO_ROUTE_CTORS = new Set(['GoRoute', 'ShellRoute', 'StatefulShellRoute']);
 const SHELL_CTORS = new Set(['ShellRoute', 'StatefulShellRoute']);
+
+/** auto_route table entries: navigable pages and `RedirectRoute` aliases. */
+const AUTO_ROUTE_CTORS = new Set(['AutoRoute', 'RedirectRoute']);
+
+/**
+ * State-management wrappers a route builder may return around the real screen
+ * (`builder: (c, s) => BlocProvider(child: HomeScreen())`). Like `PAGE_WRAPPERS`
+ * the screen is their `child:`, but a wrapper with no visible child screen yields
+ * an honest "no screen" rather than the wrapper's own name.
+ */
+const STATE_WRAPPERS = new Set([
+  'BlocProvider',
+  'MultiBlocProvider',
+  'Provider',
+  'ChangeNotifierProvider',
+]);
 
 /** go_router `pageBuilder:` Page wrappers — the real screen is their `child:`. */
 const PAGE_WRAPPERS = new Set([
@@ -42,9 +60,10 @@ const PAGE_WRAPPERS = new Set([
 export function extractRoutes(tree: Tree, relPath: string): RouteExtraction {
   const routes: RouteInfo[] = [];
   const dynamic: DynamicRouteNote[] = [];
-  extractGoRouter(tree.rootNode, relPath, routes, dynamic);
+  const routerGuards: RouterGuardNote[] = [];
+  extractGoRouter(tree.rootNode, relPath, routes, dynamic, routerGuards);
   extractAutoRoute(tree.rootNode, relPath, routes, dynamic);
-  return { routes, dynamic };
+  return { routes, dynamic, routerGuards };
 }
 
 // ───────────────────────── go_router ─────────────────────────
@@ -54,18 +73,25 @@ export function extractRoutes(tree: Tree, relPath: string): RouteExtraction {
  *   (identifier 'GoRouter') (selector (argument_part (arguments
  *     (named_argument (label (identifier 'routes')) (list_literal …)))))
  * A `routes:` value that is not a literal list (`GoRouter(routes: sharedRoutes)`)
- * is reported as a dynamic table, never fabricated.
+ * is reported as a dynamic table, never fabricated. A router-level `redirect:`
+ * (the global auth guard) applies to the whole table, so it is recorded as a
+ * RouterGuardNote rather than attached to any single route.
  */
 function extractGoRouter(
   root: Node,
   relPath: string,
   routes: RouteInfo[],
   dynamic: DynamicRouteNote[],
+  routerGuards: RouterGuardNote[],
 ): void {
   for (const id of root.descendantsOfType('identifier')) {
     if (id.text !== 'GoRouter') continue;
     const args = argsOfCall(id);
     if (!args) continue;
+    const redirect = redirectGuard(args);
+    if (redirect) {
+      routerGuards.push({ router: 'go_router', file: relPath, line: line(id), redirect });
+    }
     const routesArg = namedArgValue(args, 'routes');
     if (!routesArg) continue;
     if (routesArg.type === 'list_literal') {
@@ -151,7 +177,12 @@ function buildGoRoute(
   if (name !== undefined) route.name = name;
   if (fullPath !== undefined) route.fullPath = fullPath;
   const screen = args ? screenFromBuilders(args) : undefined;
-  if (screen) route.screenWidget = screen;
+  // A shell's builder returns a wrapper around the child navigator, not a
+  // navigable destination — keep it distinct from a route's screen.
+  if (screen) {
+    if (isShell) route.shellWidget = screen;
+    else route.screenWidget = screen;
+  }
   const guards = args ? routeGuards(args) : undefined;
   if (guards) route.guards = guards;
 
@@ -230,7 +261,7 @@ function extractAutoRoute(
 function topLevelAutoRoutes(root: Node): Node[] {
   const out: Node[] = [];
   for (const id of root.descendantsOfType('identifier')) {
-    if (id.text !== 'AutoRoute' || !argsOfCall(id)) continue;
+    if (!AUTO_ROUTE_CTORS.has(id.text) || !argsOfCall(id)) continue;
     const owner = id.parent?.parent; // identifier → list_literal → owner
     if (owner?.type === 'named_argument' && labelOf(owner) === 'children') continue;
     out.push(id);
@@ -251,6 +282,16 @@ function buildAutoRoute(
     line: line(idNode),
     children: [],
   };
+  // `RedirectRoute(path: '*', redirectTo: '/login')` is a path alias, not a page:
+  // it carries no screen and no children. Its path stays verbatim (the catch-all
+  // `*` is not a joinable segment).
+  if (idNode.text === 'RedirectRoute') {
+    const path = stringArg(args, 'path');
+    if (path !== undefined) route.path = path;
+    const to = stringArg(args, 'redirectTo');
+    if (to !== undefined) route.redirectTo = to;
+    return route;
+  }
   // `page: HomeRoute.page` — the value is the leading identifier (the generated
   // route class); the `.page` is a sibling selector. Verbatim, never resolved.
   const page = args ? namedArgValue(args, 'page') : undefined;
@@ -271,7 +312,7 @@ function buildAutoRoute(
   if (childrenArg?.type === 'list_literal') {
     const childParent = route.fullPath ?? parentFullPath;
     for (const child of childrenArg.namedChildren) {
-      if (child.type === 'identifier' && child.text === 'AutoRoute' && argsOfCall(child)) {
+      if (child.type === 'identifier' && AUTO_ROUTE_CTORS.has(child.text) && argsOfCall(child)) {
         route.children.push(buildAutoRoute(child, childParent, relPath, dynamic));
       }
     }
@@ -399,7 +440,10 @@ function screenFromBuilders(args: Node): string | undefined {
 /**
  * The widget construction a builder closure returns, handling both arrow
  * (`=> const X()`) and block (`{ … return X(); }`) bodies. A go_router Page
- * wrapper (MaterialPage/…) is unwrapped to its `child:` screen.
+ * wrapper (MaterialPage/…) or a state wrapper (BlocProvider/…) is unwrapped one
+ * level to its `child:` screen — but a page wrapper falls back to its own name
+ * (it is itself a route page) while a state wrapper falls back to nothing (it is
+ * not a screen, so reporting it would mislead — §5.1 honesty).
  *
  * For a block body the LAST top-level `return` is used, not the first
  * construction in document order: a `pageBuilder` commonly opens with a
@@ -413,12 +457,15 @@ function screenFromFunction(fn: Node): string | undefined {
   const target = lastTopLevelReturn(body) ?? body;
   const built = firstConstruction(target);
   if (!built) return undefined;
-  if (PAGE_WRAPPERS.has(built.name) && built.args) {
-    const child = namedArgValue(built.args, 'child');
-    const inner = child ? firstConstruction(child) : undefined;
-    if (inner) return inner.name;
-  }
+  if (PAGE_WRAPPERS.has(built.name)) return childScreen(built) ?? built.name;
+  if (STATE_WRAPPERS.has(built.name)) return childScreen(built);
   return built.name;
+}
+
+/** The screen built by a wrapper's `child:` argument, when syntactically visible. */
+function childScreen(built: { name: string; args?: Node }): string | undefined {
+  const child = built.args ? namedArgValue(built.args, 'child') : undefined;
+  return child ? firstConstruction(child)?.name : undefined;
 }
 
 /**
@@ -480,12 +527,17 @@ function constructionAt(node: Node): { name: string; args?: Node } | undefined {
 }
 
 /** go_router `redirect:` — a tear-off identifier, or an inline closure marker. */
-function routeGuards(args: Node): string[] | undefined {
+function redirectGuard(args: Node): string | undefined {
   const redirect = namedArgValue(args, 'redirect');
-  if (!redirect) return undefined;
-  if (redirect.type === 'identifier') return [redirect.text];
-  if (redirect.type === 'function_expression') return ['(inline redirect)'];
+  if (redirect?.type === 'identifier') return redirect.text;
+  if (redirect?.type === 'function_expression') return '(inline redirect)';
   return undefined;
+}
+
+/** A route's own `redirect:` guard, as a single-element list for `RouteInfo.guards`. */
+function routeGuards(args: Node): string[] | undefined {
+  const redirect = redirectGuard(args);
+  return redirect ? [redirect] : undefined;
 }
 
 /** auto_route `guards: [AuthGuard, …]` → the guard class identifiers. */

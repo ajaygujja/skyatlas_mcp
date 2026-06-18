@@ -173,6 +173,19 @@ export interface RouteInfo {
   fullPath?: string;
   /** Screen widget the route builds, as written — see honesty note above. */
   screenWidget?: string;
+  /**
+   * Wrapper widget a ShellRoute/StatefulShellRoute builder returns
+   * (`ShellRoute(builder: (c, s, child) => ScaffoldShell(child: child))` →
+   * "ScaffoldShell"). A shell wraps its child navigator; it is not a navigable
+   * destination, so it is kept distinct from `screenWidget` and never both.
+   */
+  shellWidget?: string;
+  /**
+   * Redirect target of an auto_route `RedirectRoute(path: '*', redirectTo: '/login')`
+   * — the destination path as written. Present only on redirect routes, which
+   * carry no screen.
+   */
+  redirectTo?: string;
   file: string;
   /** 1-based line of the route construction. */
   line: number;
@@ -193,6 +206,21 @@ export interface DynamicRouteNote {
   /** 1-based line of the construct that hides the routes. */
   line: number;
   reason: string;
+}
+
+/**
+ * A router-level guard that applies to the whole table rather than one route:
+ * go_router's `GoRouter(redirect: …)` global redirect. Surfaced separately from
+ * per-route `guards` so the graph can show it once at the top instead of
+ * fabricating a route to hang it on.
+ */
+export interface RouterGuardNote {
+  router: RouterKind;
+  file: string;
+  /** 1-based line of the router construction. */
+  line: number;
+  /** The redirect as written: a tear-off identifier, or "(inline redirect)". */
+  redirect: string;
 }
 
 export type EdgeKind =
