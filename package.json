@@ -1,10 +1,19 @@
 {
-  "name": "skyatlas_mcp",
+  "name": "skyatlas-mcp",
   "version": "0.1.0",
   "description": "Flutter-aware whole-repo structural intelligence for AI assistants, over MCP",
   "type": "module",
+  "author": "ajay gujja <ajaygujja5@gmail.com>",
+  "homepage": "https://github.com/ajaygujja/skyatlas_mcp#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ajaygujja/skyatlas_mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ajaygujja/skyatlas_mcp/issues"
+  },
   "bin": {
-    "skyatlas_mcp": "dist/server.js"
+    "skyatlas-mcp": "dist/server.js"
   },
   "files": [
     "dist",
@@ -16,6 +25,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "prepublishOnly": "pnpm run lint && pnpm run test && pnpm run build",
     "dev": "tsc -p tsconfig.build.json --watch",
     "test": "vitest run",
     "test:watch": "vitest",
