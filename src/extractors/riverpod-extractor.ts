@@ -20,6 +20,7 @@
  */
 import type { Node, Tree } from 'web-tree-sitter';
 import type { Edge, ProviderInfo } from '../model/flutter.js';
+import { parseTypeArgList } from './dart-idioms.js';
 
 export interface ProviderExtraction {
   providers: ProviderInfo[];
@@ -90,14 +91,39 @@ function providerCtor(kids: Node[]): { name: string; typeArgs: string[] } | unde
   if (!head) return undefined;
 
   // Clean form: the constructor is the second identifier; type args (if any)
-  // live in a sibling selector's argument_part.
+  // live in a sibling selector's argument_part. `.family`/`.autoDispose`
+  // modifiers are interleaved `.name` selectors — kept in the type so callers
+  // see `Provider.family`, not a bare `Provider`.
   if (head.type === 'identifier') {
     if (!isProviderName(head.text)) return undefined;
-    return { name: head.text, typeArgs: typeArgsInSelectors(kids) };
+    return { name: withModifiers(head.text, kids), typeArgs: typeArgsInSelectors(kids) };
   }
   // Mis-parse form: the constructor + single type arg hide in a relational_expression.
   if (head.type === 'relational_expression') return ctorFromRelational(head);
   return undefined;
+}
+
+/**
+ * `.family` / `.autoDispose` modifier names from a node's children: each is a
+ * `selector` wrapping an `unconditional_assignable_selector` (`.name`), as
+ * opposed to the call's `argument_part` selector. Order preserved so a chain
+ * (`Provider.autoDispose.family`) reads left-to-right.
+ */
+function modifierSelectors(kids: Node[]): string[] {
+  const mods: string[] = [];
+  for (const k of kids) {
+    if (k.type !== 'selector') continue;
+    const uas = k.namedChildren.find((c) => c.type === 'unconditional_assignable_selector');
+    const id = uas?.namedChildren.find((c) => c.type === 'identifier');
+    if (id) mods.push(id.text);
+  }
+  return mods;
+}
+
+/** Appends any `.family`/`.autoDispose` modifiers to a constructor name. */
+function withModifiers(base: string, kids: Node[]): string {
+  const mods = modifierSelectors(kids);
+  return mods.length > 0 ? `${base}.${mods.join('.')}` : base;
 }
 
 /** Clean form: first `selector > argument_part > type_arguments` wins. */
@@ -122,6 +148,7 @@ function ctorFromRelational(rel: Node): { name: string; typeArgs: string[] } | u
   const kids = head.namedChildren;
   const ctorId = kids.find((c) => c.type === 'identifier');
   if (!ctorId || !isProviderName(ctorId.text)) return undefined;
+  const name = withModifiers(ctorId.text, kids);
 
   const typeArgs: string[] = [];
   const lt = kids.findIndex((c) => c.type === 'relational_operator' && c.text === '<');
@@ -131,7 +158,7 @@ function ctorFromRelational(rel: Node): { name: string; typeArgs: string[] } | u
       if (k && (k.type === 'identifier' || k.type === 'type_identifier')) typeArgs.push(k.text);
     }
   }
-  return { name: ctorId.text, typeArgs };
+  return { name, typeArgs };
 }
 
 /**
@@ -187,6 +214,16 @@ function collectEdges(
   if (node.type === 'class_definition') {
     const nameNode = node.namedChildren.find((c) => c.type === 'identifier');
     if (nameNode) scope = `${relPath}#${nameNode.text}`;
+  } else if (node.type === 'static_final_declaration') {
+    // A `ref.read` inside a global provider's create closure belongs to that
+    // provider, not the file. Scope to `<file>#<providerVar>` (the field's
+    // symbolId) when this declaration is itself a provider. (`@riverpod`
+    // FUNCTION bodies are siblings, not descendants, so they stay file-scoped;
+    // class providers are covered by the class_definition branch above.)
+    const nameNode = node.namedChildren[0];
+    if (nameNode?.type === 'identifier' && providerCtor(node.namedChildren)) {
+      scope = `${relPath}#${nameNode.text}`;
+    }
   }
   if (node.type === 'selector') {
     const provider = refWatchTarget(node);
@@ -231,9 +268,7 @@ function refWatchTarget(methodSel: Node): string | undefined {
   return lead?.type === 'identifier' ? lead.text : undefined;
 }
 
-/** `(type_arguments (type_identifier|identifier)+)` → verbatim arg texts. */
+/** `(type_arguments …)` → verbatim arg texts, nested generics preserved. */
 function typeArgTexts(typeArguments: Node): string[] {
-  return typeArguments.namedChildren
-    .filter((c) => c.type === 'type_identifier' || c.type === 'identifier')
-    .map((c) => c.text);
+  return parseTypeArgList(typeArguments);
 }

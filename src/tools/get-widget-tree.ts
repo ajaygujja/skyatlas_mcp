@@ -83,7 +83,7 @@ function formatWidget(info: WidgetInfo, index: ProjectIndex, maxDepth: number): 
   lines.push(`# Widget tree: ${info.name} (${info.flavor}) — ${info.file}:${String(info.line)}`);
   if (info.superclass) lines.push(`extends ${info.superclass}`);
 
-  if (!info.buildTree) {
+  if (!info.buildTree?.length) {
     lines.push('');
     lines.push(noBuildTreeNote(info, index));
     return lines;
@@ -91,7 +91,9 @@ function formatWidget(info: WidgetInfo, index: ProjectIndex, maxDepth: number): 
 
   lines.push('');
   const body: string[] = [];
-  renderNode(info.buildTree, undefined, 0, maxDepth, body);
+  for (const root of info.buildTree) {
+    renderNode(root, undefined, 0, maxDepth, body);
+  }
   lines.push(...capLines(body, MAX_LINES, 'increase specificity or lower depth='));
   lines.push('');
   lines.push('Tree is syntactic: constructor calls as written, not runtime render.');
@@ -110,6 +112,10 @@ function renderNode(
   const head = node.typeArgs ? `${node.widget}<${node.typeArgs.join(', ')}>` : node.widget;
   const prefix = slot ? `${slot}: ` : '';
   const tags: string[] = [];
+  if (node.branch) tags.push('alternative branch');
+  if (node.conditional) tags.push('conditional');
+  if (node.dynamic === 'mapped') tags.push('dynamic (mapped)');
+  if (node.dynamic === 'spread') tags.push('spread (dynamic)');
   if (node.isBuilderCallback) tags.push('builder');
   if (node.recoveredFromMisparse) tags.push('generic recovered from mis-parse — slots best-effort');
   const tagText = tags.length > 0 ? `  [${tags.join('; ')}]` : '';

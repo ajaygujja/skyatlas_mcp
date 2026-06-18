@@ -6,14 +6,7 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { ProjectIndex } from '../index/project-index.js';
 import type { Symbol } from '../model/symbol.js';
-import {
-  annotationsText,
-  capLines,
-  errorResult,
-  fileLine,
-  signatureText,
-  textResult,
-} from './format.js';
+import { annotationsText, errorResult, fileLine, signatureText, textResult } from './format.js';
 
 const SYMBOL_KINDS = [
   'class',
@@ -43,16 +36,28 @@ export function registerFindSymbol(server: McpServer, getIndex: () => Promise<Pr
         'Use this INSTEAD of grep when looking for where something is declared. ' +
         'Generated files (*.g.dart etc.) are excluded unless includeGenerated=true.',
       inputSchema: {
-        query: z.string().min(1).describe('Name or name fragment, e.g. "UserBloc" or "user".'),
+        query: z.string().describe('Name or name fragment, e.g. "UserBloc" or "user".'),
         kind: z.enum(SYMBOL_KINDS).optional().describe('Restrict to one symbol kind.'),
         package: z.string().optional().describe('Restrict to one package (pubspec name).'),
         includeGenerated: z
           .boolean()
           .optional()
           .describe('Also search *.g.dart / *.freezed.dart / *.gr.dart files.'),
+        offset: z
+          .number()
+          .int()
+          .min(0)
+          .optional()
+          .describe(`Skip this many ranked matches before the page (default 0). Page size is ${String(MAX_RESULTS)}; the response prints the next offset when more remain.`),
       },
     },
-    async ({ query, kind, package: pkg, includeGenerated }) => {
+    async ({ query, kind, package: pkg, includeGenerated, offset }) => {
+      // Schema permits any string so the empty case yields a friendly hint
+      // rather than a raw Zod min-length validation error at the SDK layer.
+      if (query.trim().length === 0) {
+        return textResult('Provide a name or fragment to search for, e.g. "UserBloc" or "user".');
+      }
+
       let index: ProjectIndex;
       try {
         index = await getIndex();
@@ -80,14 +85,26 @@ export function registerFindSymbol(server: McpServer, getIndex: () => Promise<Pr
         );
       }
 
-      const lines = matches.map(formatMatch);
-      lines.unshift(
-        `${String(matches.length)} match(es) for '${query}'` +
-          `${kind ? ` kind=${kind}` : ''}${pkg ? ` package=${pkg}` : ''}:`,
-      );
-      return textResult(
-        capLines(lines, MAX_RESULTS + 1, 'narrow with kind= or package=').join('\n'),
-      );
+      const total = matches.length;
+      const filterText = `${kind ? ` kind=${kind}` : ''}${pkg ? ` package=${pkg}` : ''}`;
+      const start = offset ?? 0;
+      if (start >= total) {
+        return textResult(
+          `offset ${String(start)} is past the end — only ${String(total)} match(es) for '${query}'${filterText}. Use a smaller offset.`,
+        );
+      }
+
+      const page = matches.slice(start, start + MAX_RESULTS);
+      const end = start + page.length; // exclusive index of the last shown match
+      const window = total > page.length ? ` (showing ${String(start + 1)}-${String(end)})` : '';
+      const lines = [`${String(total)} match(es) for '${query}'${filterText}${window}:`];
+      lines.push(...page.map(formatMatch));
+      if (end < total) {
+        lines.push(
+          `… ${String(total - end)} more — pass offset=${String(end)} for the next page, or narrow with kind= / package=.`,
+        );
+      }
+      return textResult(lines.join('\n'));
     },
   );
 }

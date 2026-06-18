@@ -30,8 +30,12 @@ export interface WidgetInfo {
   line: number;
   /** Superclass as written, e.g. "State<SettingsScreen>" — verbatim. */
   superclass?: string;
-  /** Present when a build() method was found and its returned tree parsed. */
-  buildTree?: WidgetNode;
+  /**
+   * Present when a build() method was found and its returned tree parsed.
+   * Multiple entries represent alternative branches (conditional/switch/early-return
+   * patterns); each root is marked `branch: true` when there are ≥2 outcomes.
+   */
+  buildTree?: WidgetNode[];
 }
 
 /**
@@ -56,6 +60,27 @@ export interface WidgetNode {
    * Its slots are best-effort; absence of children is not proof of none.
    */
   recoveredFromMisparse?: boolean;
+  /**
+   * True when this root is one of ≥2 alternative branches (conditional return,
+   * switch-expression return, or multiple return statements). Honesty label:
+   * the tree shows all statically reachable outcomes, not a single path.
+   */
+  branch?: true;
+  /**
+   * Honesty marker for a child built dynamically rather than as a literal
+   * constructor call. The node is shown but never as a plain static child:
+   *   - 'mapped': one representative child from a `.map`/`.where`/`.expand`
+   *     closure over a collection (`items.map((e) => Tile()).toList()`); the
+   *     real count is runtime-dependent, not enumerable.
+   *   - 'spread': a spread element (`...widgets`) — an opaque list reference.
+   */
+  dynamic?: 'mapped' | 'spread';
+  /**
+   * True when this child lives inside a collection-`if`
+   * (`if (cond) Banner()`) and therefore renders only when the condition
+   * holds. Distinct from `branch`, which marks whole-tree alternatives.
+   */
+  conditional?: true;
 }
 
 export type BlocFlavor = 'bloc' | 'cubit';
@@ -148,6 +173,19 @@ export interface RouteInfo {
   fullPath?: string;
   /** Screen widget the route builds, as written — see honesty note above. */
   screenWidget?: string;
+  /**
+   * Wrapper widget a ShellRoute/StatefulShellRoute builder returns
+   * (`ShellRoute(builder: (c, s, child) => ScaffoldShell(child: child))` →
+   * "ScaffoldShell"). A shell wraps its child navigator; it is not a navigable
+   * destination, so it is kept distinct from `screenWidget` and never both.
+   */
+  shellWidget?: string;
+  /**
+   * Redirect target of an auto_route `RedirectRoute(path: '*', redirectTo: '/login')`
+   * — the destination path as written. Present only on redirect routes, which
+   * carry no screen.
+   */
+  redirectTo?: string;
   file: string;
   /** 1-based line of the route construction. */
   line: number;
@@ -168,6 +206,21 @@ export interface DynamicRouteNote {
   /** 1-based line of the construct that hides the routes. */
   line: number;
   reason: string;
+}
+
+/**
+ * A router-level guard that applies to the whole table rather than one route:
+ * go_router's `GoRouter(redirect: …)` global redirect. Surfaced separately from
+ * per-route `guards` so the graph can show it once at the top instead of
+ * fabricating a route to hang it on.
+ */
+export interface RouterGuardNote {
+  router: RouterKind;
+  file: string;
+  /** 1-based line of the router construction. */
+  line: number;
+  /** The redirect as written: a tear-off identifier, or "(inline redirect)". */
+  redirect: string;
 }
 
 export type EdgeKind =

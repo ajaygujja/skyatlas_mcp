@@ -34,5 +34,6 @@ class AppRouter extends RootStackRouter {
             AutoRoute(page: StatsRoute.page, path: 'stats'),
           ],
         ),
+        RedirectRoute(path: '*', redirectTo: '/login'),
       ];
 }

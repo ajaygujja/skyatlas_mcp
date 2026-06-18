@@ -124,6 +124,28 @@ exports[`extractBlocs > matches snapshot: locator_provider.dart 1`] = `
 }
 `;
 
+exports[`extractBlocs > matches snapshot: multi_bloc_provider.dart 1`] = `
+{
+  "blocs": [],
+  "edges": [
+    {
+      "confidence": "syntactic",
+      "from": "fixtures/blocs/multi_bloc_provider.dart#MultiTypedScreen",
+      "kind": "createsBloc",
+      "line": 10,
+      "to": "ArrowBloc",
+    },
+    {
+      "confidence": "syntactic",
+      "from": "fixtures/blocs/multi_bloc_provider.dart#MultiTypedScreen",
+      "kind": "createsBloc",
+      "line": 13,
+      "to": "BlockBodyBloc",
+    },
+  ],
+}
+`;
+
 exports[`extractBlocs > matches snapshot: multi_bloc_view.dart 1`] = `
 {
   "blocs": [],

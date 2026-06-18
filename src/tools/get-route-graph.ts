@@ -62,8 +62,12 @@ function formatRouteGraph(index: ProjectIndex, router: RouterKind | undefined): 
   const body: string[] = [];
 
   const go = index.routes.filter((r) => r.router === 'go_router');
-  if (wanted('go_router') && go.length > 0) {
+  const goGuards = index.routerGuards.filter((g) => g.router === 'go_router');
+  if (wanted('go_router') && (go.length > 0 || goGuards.length > 0)) {
     body.push('## go_router');
+    for (const g of goGuards) {
+      body.push(`- global redirect: ${g.redirect} — ${g.file}:${String(g.line)}`);
+    }
     for (const route of go) renderRoute(route, 0, undefined, consts, undefined, body);
     body.push('');
   }
@@ -137,7 +141,12 @@ function routeLine(
 ): string {
   const indent = '  '.repeat(depth);
   const screen = screenOverride ?? route.screenWidget;
-  const screenPart = screen ? ` → ${screen}` : '';
+  // A shell wraps its child navigator; show its wrapper distinctly from a `→ screen`.
+  const screenPart = screen
+    ? ` → ${screen}`
+    : route.shellWidget
+      ? ` (shell: ${route.shellWidget})`
+      : '';
   const guards = guardsPart(route);
   const name = route.name && route.name !== screen ? ` (${route.name})` : '';
   return `${indent}- ${path}${screenPart}${name} — ${route.file}:${String(route.line)}${guards}`;
@@ -184,7 +193,9 @@ function autoRouteLine(
   const indent = '  '.repeat(depth);
   const ref = route.screenWidget ? ` → ${route.screenWidget}` : '';
   const screen = resolvedScreen ? ` → ${resolvedScreen}` : '';
-  return `${indent}- ${pathLabel(route, consts)}${ref}${screen} — ${route.file}:${String(route.line)}${guardsPart(route)}`;
+  // A RedirectRoute has no screen — it forwards to another path.
+  const redirect = route.redirectTo ? ` → ${route.redirectTo} (redirect)` : '';
+  return `${indent}- ${pathLabel(route, consts)}${ref}${screen}${redirect} — ${route.file}:${String(route.line)}${guardsPart(route)}`;
 }
 
 /**

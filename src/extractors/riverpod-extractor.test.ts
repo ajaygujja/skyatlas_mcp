@@ -35,24 +35,35 @@ describe('extractProviders', () => {
     });
   });
 
-  it('reads the constructor through a .autoDispose chain', async () => {
+  it('keeps the .autoDispose modifier in the provider type', async () => {
     const { providers } = await extractFixture('providers.dart');
     expect(providers.find((x) => x.name === 'asyncUserProvider')).toMatchObject({
-      providerType: 'FutureProvider',
+      providerType: 'FutureProvider.autoDispose',
       typeArgs: ['User'],
     });
   });
 
-  it('reads a clean two-type-arg provider and a .family provider', async () => {
+  it('reads a clean two-type-arg provider and keeps the .family modifier', async () => {
     const { providers } = await extractFixture('providers.dart');
     expect(providers.find((x) => x.name === 'userNotifierProvider')).toMatchObject({
       providerType: 'NotifierProvider',
       typeArgs: ['UserNotifier', 'UserState'],
     });
-    // `Provider.family<User, String>` → base ctor name + both type args.
+    // `Provider.family<User, String>` → ctor name + modifier + both type args.
     expect(providers.find((x) => x.name === 'userByIdProvider')).toMatchObject({
-      providerType: 'Provider',
+      providerType: 'Provider.family',
       typeArgs: ['User', 'String'],
+    });
+  });
+
+  it('scopes a provider-body ref.watch edge to the enclosing provider, not the file (#3)', async () => {
+    const { edges } = await extractFixture('provider_deps.dart');
+    expect(edges).toContainEqual({
+      from: 'fixtures/riverpod/provider_deps.dart#derivedProvider',
+      to: 'baseProvider',
+      kind: 'watchesProvider',
+      line: 11,
+      confidence: 'syntactic',
     });
   });
 

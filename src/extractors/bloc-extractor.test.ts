@@ -145,6 +145,26 @@ describe('extractBlocs', () => {
     });
   });
 
+  it('emits createsBloc from BlocProvider<T> in a list (collection-position mis-parse)', async () => {
+    // BlocProvider<T> at value position in a list mis-parses as relational_expression.
+    // Both arrow and block-body create forms must still resolve via the outer mis-parse.
+    const { edges } = await extractFixture('multi_bloc_provider.dart');
+    expect(edges).toContainEqual({
+      from: 'fixtures/blocs/multi_bloc_provider.dart#MultiTypedScreen',
+      to: 'ArrowBloc',
+      kind: 'createsBloc',
+      line: 10,
+      confidence: 'syntactic',
+    });
+    expect(edges).toContainEqual({
+      from: 'fixtures/blocs/multi_bloc_provider.dart#MultiTypedScreen',
+      to: 'BlockBodyBloc',
+      kind: 'createsBloc',
+      line: 13,
+      confidence: 'syntactic',
+    });
+  });
+
   it('emits no edges and no blocs for a plain bloc declaration file', async () => {
     const { blocs, edges } = await extractFixture('auth_bloc.dart');
     expect(blocs).toHaveLength(1);

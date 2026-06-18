@@ -24,6 +24,11 @@ function flattenTree(node: WidgetNode | undefined): WidgetNode[] {
   return [node, ...kids.flatMap(flattenTree)];
 }
 
+/** Flatten the first root of a multi-root buildTree. */
+function flattenFirstRoot(nodes: WidgetNode[] | undefined): WidgetNode[] {
+  return flattenTree(nodes?.[0]);
+}
+
 describe('extractWidgets', () => {
   // Snapshots are the extraction contract: a diff in review = behavior change (§9.3).
   it.each(readdirSync(FIXTURES).filter((f) => f.endsWith('.dart')))(
@@ -42,6 +47,18 @@ describe('extractWidgets', () => {
     expect(profile.find((w) => w.name === 'CounterBadge')?.flavor).toBe('hook');
   });
 
+  // Regression guard: expression-bodied build() has no return_statement, so the
+  // returned widget must be read straight off the function_body (collectBuildRoots).
+  it('extracts the build tree from an arrow-bodied build()', async () => {
+    const arrow = await extractFixture('arrow_body.dart');
+    const constArrow = arrow.find((w) => w.name === 'ConstArrowScreen')?.buildTree?.[0];
+    expect(constArrow?.widget).toBe('MaterialApp');
+    expect((constArrow?.namedSlots['home'] ?? []).map((c) => c.widget)).toEqual(['HomeBody']);
+
+    const plainArrow = arrow.find((w) => w.name === 'PlainArrowScreen')?.buildTree?.[0];
+    expect(plainArrow?.widget).toBe('Scaffold');
+  });
+
   it('does not treat a plain non-widget class as a widget', async () => {
     const profile = await extractFixture('profile_widgets.dart');
     expect(profile.find((w) => w.name === 'ProfileRepository')).toBeUndefined();
@@ -49,7 +66,7 @@ describe('extractWidgets', () => {
 
   it('parses a nested build tree with named slots and a children list', async () => {
     const profile = await extractFixture('profile_widgets.dart');
-    const tree = profile.find((w) => w.name === 'ProfileView')?.buildTree;
+    const tree = profile.find((w) => w.name === 'ProfileView')?.buildTree?.[0];
     expect(tree?.widget).toBe('Column');
     const children = tree?.namedSlots['children'] ?? [];
     expect(children.map((c) => c.widget)).toEqual(['Text', 'Divider', 'ElevatedButton']);
@@ -57,7 +74,7 @@ describe('extractWidgets', () => {
 
   it('recovers a mis-parsed generic constructor (BlocBuilder<A, B>) with type args and builder subtree', async () => {
     const home = await extractFixture('home_screen.dart');
-    const tree = home.find((w) => w.name === 'HomeScreen')?.buildTree;
+    const tree = home.find((w) => w.name === 'HomeScreen')?.buildTree?.[0];
     const blocBuilder = tree?.namedSlots['body']?.[0];
     expect(blocBuilder?.widget).toBe('BlocBuilder');
     expect(blocBuilder?.typeArgs).toEqual(['HomeBloc', 'HomeState']);
@@ -72,14 +89,14 @@ describe('extractWidgets', () => {
   it('keeps clean type args on a single-type-arg generic constructor', async () => {
     // FutureBuilder<int>(...) parses cleanly — type_arguments inside argument_part.
     const home = await extractFixture('home_screen.dart');
-    const ctors = flattenTree(home.find((w) => w.name === 'HomeScreen')?.buildTree);
+    const ctors = flattenFirstRoot(home.find((w) => w.name === 'HomeScreen')?.buildTree);
     // ListView.builder appears via the recovered subtree; assert names are reachable.
     expect(ctors.map((c) => c.widget)).toContain('ListView.builder');
   });
 
   it('omits event-handler callbacks (onPressed/onTap) from the static layout tree', async () => {
     const home = await extractFixture('home_screen.dart');
-    const fab = home.find((w) => w.name === 'HomeScreen')?.buildTree?.namedSlots[
+    const fab = home.find((w) => w.name === 'HomeScreen')?.buildTree?.[0]?.namedSlots[
       'floatingActionButton'
     ]?.[0];
     expect(fab?.widget).toBe('FloatingActionButton');
@@ -96,6 +113,33 @@ describe('extractWidgets', () => {
     expect(sw?.buildTree).toBeUndefined();
     const state = widgets.find((w) => w.name === '_SettingsScreenState');
     expect(state?.flavor).toBe('state');
-    expect(state?.buildTree?.widget).toBe('Scaffold');
+    expect(state?.buildTree?.[0]?.widget).toBe('Scaffold');
+  });
+
+  it('labels a `.map` collection child dynamic (mapped), not a builder callback', async () => {
+    const { tree } = await parseFile(resolve(FIXTURES, '../basic/widget_tree_repro.dart'));
+    const widgets = extractWidgets(tree, 'fixtures/basic/widget_tree_repro.dart');
+    const row = widgets.find((w) => w.name === 'MappedChildrenField')?.buildTree?.[0];
+    expect(row?.widget).toBe('Row');
+    const child = row?.namedSlots['children']?.[0];
+    // items.map((i) => Expanded(...)).toList(): one representative element, marked
+    // as a dynamic collection — never a static child, never a builder slot.
+    expect(child?.widget).toBe('Expanded');
+    expect(child?.dynamic).toBe('mapped');
+    expect(child?.isBuilderCallback).toBeUndefined();
+  });
+
+  it('marks a collection-`if` child conditional and a spread as dynamic', async () => {
+    const { tree } = await parseFile(resolve(FIXTURES, '../stress/widgets_hard.dart'));
+    const widgets = extractWidgets(tree, 'fixtures/stress/widgets_hard.dart');
+    const column = widgets.find((w) => w.name === 'CollectionIfChildren')?.buildTree?.[0];
+    const children = column?.namedSlots['children'] ?? [];
+    expect(children.map((c) => c.widget)).toEqual(['Header', 'Banner', '...footerWidgets', 'Footer']);
+    const banner = children.find((c) => c.widget === 'Banner');
+    expect(banner?.conditional).toBe(true);
+    // Plain siblings are not marked conditional.
+    expect(children.find((c) => c.widget === 'Header')?.conditional).toBeUndefined();
+    // The spread is surfaced as a dynamic marker, never silently dropped.
+    expect(children.find((c) => c.widget === '...footerWidgets')?.dynamic).toBe('spread');
   });
 });

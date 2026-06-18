@@ -96,8 +96,19 @@ function extractDeclaration(
   switch (node.type) {
     // Observed: (class_definition (annotation)* (abstract)? (identifier)
     //   (type_parameters)? (superclass)? (interfaces)? (class_body))
-    case 'class_definition':
-      return containerSymbol(node, 'class', 'class_body', relPath, parent, pending);
+    // A `mixin class` carries a `mixin` child token (NOT a parseModifiers
+    // keyword) — report it as a mixin so callers don't treat it as a plain class.
+    case 'class_definition': {
+      const isMixinClass = node.namedChildren.some((c) => c.type === 'mixin');
+      return containerSymbol(
+        node,
+        isMixinClass ? 'mixin' : 'class',
+        'class_body',
+        relPath,
+        parent,
+        pending,
+      );
+    }
 
     // Observed: (mixin_declaration (mixin) (identifier) (class_body))
     case 'mixin_declaration':
@@ -251,6 +262,11 @@ function extractMemberSignature(
       return signatureSymbol(outer, inner, followingBody, 'getter', relPath, parent, pending);
     case 'setter_signature':
       return signatureSymbol(outer, inner, followingBody, 'setter', relPath, parent, pending);
+    // Observed: (operator_signature (type)? (binary_operator)? (formal_parameter_list))
+    // The `operator` keyword and index tokens (`[]`, `[]=`) are ANONYMOUS — the
+    // only named operator node is `binary_operator` (e.g. `<`), absent for `[]`.
+    case 'operator_signature':
+      return operatorSymbol(outer, inner, followingBody, relPath, parent, pending);
     // Observed: (constructor_signature (identifier) (identifier)? (formal_parameter_list))
     // Two identifiers = named constructor `Circle.unit`.
     // Observed: (constant_constructor_signature (const_builtin) (identifier) (formal_parameter_list))
@@ -295,6 +311,47 @@ function signatureSymbol(
   const typeParameters = parseTypeParameters(signature);
   if (typeParameters) sym.typeParameters = typeParameters;
   const returnType = parseLeadingType(signature, nameNode);
+  if (returnType) sym.returnType = returnType;
+  const parameters = parseParameters(signature);
+  if (parameters) sym.parameters = parameters;
+  return [sym];
+}
+
+/**
+ * Operator overload (`bool operator <(...)`, `T operator [](int i)`) as a
+ * `method` symbol named `operator <`, `operator []`, etc. The operator token is
+ * anonymous in the CST, so the name is sliced from source text; the return type
+ * is the leading type run before the `binary_operator` node (or the parameter
+ * list when no such node exists, as for `[]`).
+ */
+function operatorSymbol(
+  outer: Node,
+  signature: Node,
+  followingBody: Node | undefined,
+  relPath: string,
+  parent: Symbol | undefined,
+  pending: Pending,
+): Symbol[] {
+  const match = /\boperator\b\s*([^\s(]+)/.exec(signature.text);
+  if (!match?.[1]) return [];
+  const name = `operator ${match[1]}`;
+
+  // Anchor the symbol's range/nameRange on the operator token when present,
+  // else on the signature node itself.
+  const anchor =
+    signature.namedChildren.find((c) => c.type === 'binary_operator') ?? signature;
+  const sym = leafSymbol(outer, anchor, 'method', relPath, parent);
+  sym.name = name;
+  sym.qualifiedName = parent ? `${parent.qualifiedName}.${name}` : name;
+  sym.id = `${relPath}#${sym.qualifiedName}`;
+
+  if (followingBody) sym.range.endLine = followingBody.endPosition.row + 1;
+  applyPending(sym, pending);
+  sym.modifiers = parseModifiers(outer !== signature ? outer : undefined, signature);
+  const bodyModifier = parseBodyModifier(followingBody);
+  if (bodyModifier) sym.modifiers.push(bodyModifier);
+  const paramList = signature.namedChildren.find((c) => c.type === 'formal_parameter_list');
+  const returnType = parseLeadingType(signature, anchor !== signature ? anchor : (paramList ?? signature));
   if (returnType) sym.returnType = returnType;
   const parameters = parseParameters(signature);
   if (parameters) sym.parameters = parameters;

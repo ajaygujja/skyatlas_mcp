@@ -34,14 +34,29 @@ describe('extractRoutes', () => {
     expect(settings?.children[0]?.fullPath).toBe('/settings/about');
   });
 
-  it('treats ShellRoute as path-less and passes the parent path through', async () => {
+  it('treats ShellRoute as path-less and labels its wrapper, not a screen', async () => {
     const { routes } = await extractFixture('go_router_app.dart');
-    const shell = routes.find((r) => r.screenWidget === 'ScaffoldShell');
+    const shell = routes.find((r) => r.shellWidget === 'ScaffoldShell');
     expect(shell?.path).toBeUndefined();
     expect(shell?.fullPath).toBeUndefined();
     expect(shell?.isShell).toBe(true);
+    // The wrapper is a shellWidget, never a navigable screen.
+    expect(shell?.screenWidget).toBeUndefined();
     // Absolute child paths survive the shell unchanged.
     expect(shell?.children.map((c) => c.fullPath)).toEqual(['/profile', '/profile/edit']);
+  });
+
+  it('captures the router-level redirect as a router guard (R1)', async () => {
+    const { routerGuards } = await extractFixture('go_router_app.dart');
+    expect(routerGuards).toEqual([
+      expect.objectContaining({ router: 'go_router', redirect: 'rootRedirect' }),
+    ]);
+  });
+
+  it('unwraps a BlocProvider builder to its child screen (B7)', async () => {
+    const { routes } = await extractFixture('go_router_app.dart');
+    const feed = routes.find((r) => r.path === '/feed');
+    expect(feed?.screenWidget).toBe('FeedScreen');
   });
 
   it('unwraps a pageBuilder MaterialPage to its child screen, and reads the redirect guard', async () => {
@@ -74,7 +89,7 @@ describe('extractRoutes', () => {
   it('flattens StatefulShellRoute branches into children', async () => {
     const { routes } = await extractFixture('stateful_shell.dart');
     const shell = routes[0];
-    expect(shell?.screenWidget).toBe('HomeShell');
+    expect(shell?.shellWidget).toBe('HomeShell');
     expect(shell?.children.map((c) => c.fullPath)).toEqual(['/feed', '/alerts']);
   });
 
@@ -88,6 +103,13 @@ describe('extractRoutes', () => {
     });
     const profile = routes.find((r) => r.name === 'ProfileRoute');
     expect(profile?.guards).toEqual(['AuthGuard']);
+  });
+
+  it('extracts a RedirectRoute alias with its redirect target (AR1)', async () => {
+    const { routes } = await extractFixture('auto_route_config.dart');
+    const redirect = routes.find((r) => r.redirectTo !== undefined);
+    expect(redirect).toMatchObject({ path: '*', redirectTo: '/login' });
+    expect(redirect?.screenWidget).toBeUndefined();
   });
 
   it('resolves the real screen from the *.gr.dart PageInfo builder (§7.4 fallback)', async () => {

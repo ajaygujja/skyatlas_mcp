@@ -39,13 +39,17 @@ describe('get_route_graph (formatted response)', () => {
   it('renders go_router nesting with computed full paths and guards', async () => {
     const text = await callRouteGraph({ router: 'go_router' });
     expect(text).toContain('## go_router');
+    // Router-level redirect surfaced once at the top, not attached to a route (R1).
+    expect(text).toContain('- global redirect: rootRedirect');
     expect(text).toContain('- / → HomeScreen (home)');
     expect(text).toContain('  - /settings → SettingsScreen (settings)');
     expect(text).toContain('    - /settings/about → AboutScreen');
-    // ShellRoute is path-less; its absolute children keep their own paths.
-    expect(text).toContain('- (shell — no path) → ScaffoldShell');
+    // ShellRoute is path-less; its wrapper is labelled distinctly, not as a screen (R2).
+    expect(text).toContain('- (shell — no path) (shell: ScaffoldShell)');
     expect(text).toContain('  - /profile → ProfilePage');
     expect(text).toContain('[guards: authGuard]');
+    // A BlocProvider builder is unwrapped to the real screen, not the wrapper (B7).
+    expect(text).toContain('- /feed → FeedScreen (feed)');
     // StatefulShellRoute branches flattened under the shell.
     expect(text).toContain('  - /feed → FeedScreen');
   });
@@ -59,6 +63,8 @@ describe('get_route_graph (formatted response)', () => {
     expect(text).toContain('- /dashboard → DashboardRoute');
     expect(text).toContain('  - /dashboard/stats → StatsRoute');
     expect(text).toContain('[guards: AuthGuard]');
+    // A RedirectRoute is extracted and shown forwarding to its target (AR1).
+    expect(text).toContain('- * → /login (redirect)');
   });
 
   it('reports dynamic tables honestly', async () => {

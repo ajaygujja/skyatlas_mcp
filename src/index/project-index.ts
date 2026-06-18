@@ -12,6 +12,7 @@ import type {
   Edge,
   ProviderInfo,
   RouteInfo,
+  RouterGuardNote,
   WidgetInfo,
 } from '../model/flutter.js';
 import type { ImportEntry } from '../extractors/import-extractor.js';
@@ -40,6 +41,8 @@ export interface FileEntry {
   routes: RouteInfo[];
   /** Route tables in this file the syntax layer cannot enumerate (Phase 3d). */
   dynamicRoutes: DynamicRouteNote[];
+  /** Router-level guards declared in this file (go_router global `redirect:`). */
+  routerGuards: RouterGuardNote[];
   /** Partial state-management edges sourced from this file (Phase 3b bloc + 3c provider). */
   edges: Edge[];
   /** String constants declared in this file, for route path-const resolution. */
@@ -62,6 +65,8 @@ export class ProjectIndex {
   readonly routes: RouteInfo[] = [];
   /** Dynamic route tables across files, for honest get_route_graph reporting (Phase 3d). */
   readonly dynamicRoutes: DynamicRouteNote[] = [];
+  /** Router-level guards across files (go_router global `redirect:`). */
+  readonly routerGuards: RouterGuardNote[] = [];
   /** Cross-cutting syntactic edges, aggregated across files (Phase 3b → 3e). */
   readonly edges: Edge[] = [];
   packages: PackageEntry[] = [];
@@ -77,6 +82,7 @@ export class ProjectIndex {
     this.providers.length = 0;
     this.routes.length = 0;
     this.dynamicRoutes.length = 0;
+    this.routerGuards.length = 0;
     this.edges.length = 0;
     this.packages = [];
   }
@@ -111,6 +117,7 @@ export class ProjectIndex {
     this.providers.push(...entry.providers);
     this.routes.push(...entry.routes);
     this.dynamicRoutes.push(...entry.dynamicRoutes);
+    this.routerGuards.push(...entry.routerGuards);
     this.edges.push(...entry.edges);
   }
 
@@ -141,6 +148,10 @@ export class ProjectIndex {
     for (const note of old.dynamicRoutes) {
       const i = this.dynamicRoutes.indexOf(note);
       if (i !== -1) this.dynamicRoutes.splice(i, 1);
+    }
+    for (const guard of old.routerGuards) {
+      const i = this.routerGuards.indexOf(guard);
+      if (i !== -1) this.routerGuards.splice(i, 1);
     }
     for (const edge of old.edges) {
       const i = this.edges.indexOf(edge);

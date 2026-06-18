@@ -3,6 +3,7 @@
 exports[`extractRoutes > matches snapshot: auto_route_app.gr.dart 1`] = `
 {
   "dynamic": [],
+  "routerGuards": [],
   "routes": [
     {
       "children": [],
@@ -27,6 +28,7 @@ exports[`extractRoutes > matches snapshot: auto_route_app.gr.dart 1`] = `
 exports[`extractRoutes > matches snapshot: auto_route_config.dart 1`] = `
 {
   "dynamic": [],
+  "routerGuards": [],
   "routes": [
     {
       "children": [],
@@ -70,6 +72,14 @@ exports[`extractRoutes > matches snapshot: auto_route_config.dart 1`] = `
       "router": "auto_route",
       "screenWidget": "DashboardRoute",
     },
+    {
+      "children": [],
+      "file": "fixtures/routes/auto_route_config.dart",
+      "line": 37,
+      "path": "*",
+      "redirectTo": "/login",
+      "router": "auto_route",
+    },
   ],
 }
 `;
@@ -77,11 +87,12 @@ exports[`extractRoutes > matches snapshot: auto_route_config.dart 1`] = `
 exports[`extractRoutes > matches snapshot: const_paths_guarded.dart 1`] = `
 {
   "dynamic": [],
+  "routerGuards": [],
   "routes": [
     {
       "children": [],
       "file": "fixtures/routes/const_paths_guarded.dart",
-      "line": 16,
+      "line": 26,
       "pathExpr": "RoutePaths.home",
       "router": "go_router",
       "screenWidget": "HomeScreen",
@@ -91,14 +102,14 @@ exports[`extractRoutes > matches snapshot: const_paths_guarded.dart 1`] = `
         {
           "children": [],
           "file": "fixtures/routes/const_paths_guarded.dart",
-          "line": 30,
+          "line": 40,
           "pathExpr": "RoutePaths.edit",
           "router": "go_router",
           "screenWidget": "WorkLogEditScreen",
         },
       ],
       "file": "fixtures/routes/const_paths_guarded.dart",
-      "line": 20,
+      "line": 30,
       "pathExpr": "RoutePaths.detail",
       "router": "go_router",
       "screenWidget": "WorkLogDetailScreen",
@@ -106,10 +117,18 @@ exports[`extractRoutes > matches snapshot: const_paths_guarded.dart 1`] = `
     {
       "children": [],
       "file": "fixtures/routes/const_paths_guarded.dart",
-      "line": 42,
+      "line": 52,
       "pathExpr": "RoutePaths.unmapped",
       "router": "go_router",
       "screenWidget": "MysteryScreen",
+    },
+    {
+      "children": [],
+      "file": "fixtures/routes/const_paths_guarded.dart",
+      "line": 56,
+      "pathExpr": "AppRoutes.splash.path",
+      "router": "go_router",
+      "screenWidget": "SplashScreen",
     },
   ],
 }
@@ -137,6 +156,7 @@ exports[`extractRoutes > matches snapshot: dynamic_routes.dart 1`] = `
       "router": "go_router",
     },
   ],
+  "routerGuards": [],
   "routes": [
     {
       "children": [],
@@ -154,6 +174,14 @@ exports[`extractRoutes > matches snapshot: dynamic_routes.dart 1`] = `
 exports[`extractRoutes > matches snapshot: go_router_app.dart 1`] = `
 {
   "dynamic": [],
+  "routerGuards": [
+    {
+      "file": "fixtures/routes/go_router_app.dart",
+      "line": 9,
+      "redirect": "rootRedirect",
+      "router": "go_router",
+    },
+  ],
   "routes": [
     {
       "children": [
@@ -163,7 +191,7 @@ exports[`extractRoutes > matches snapshot: go_router_app.dart 1`] = `
               "children": [],
               "file": "fixtures/routes/go_router_app.dart",
               "fullPath": "/settings/about",
-              "line": 22,
+              "line": 23,
               "path": "about",
               "router": "go_router",
               "screenWidget": "AboutScreen",
@@ -171,7 +199,7 @@ exports[`extractRoutes > matches snapshot: go_router_app.dart 1`] = `
           ],
           "file": "fixtures/routes/go_router_app.dart",
           "fullPath": "/settings",
-          "line": 17,
+          "line": 18,
           "name": "settings",
           "path": "settings",
           "router": "go_router",
@@ -180,7 +208,7 @@ exports[`extractRoutes > matches snapshot: go_router_app.dart 1`] = `
       ],
       "file": "fixtures/routes/go_router_app.dart",
       "fullPath": "/",
-      "line": 12,
+      "line": 13,
       "name": "home",
       "path": "/",
       "router": "go_router",
@@ -195,7 +223,7 @@ exports[`extractRoutes > matches snapshot: go_router_app.dart 1`] = `
           "guards": [
             "authGuard",
           ],
-          "line": 33,
+          "line": 34,
           "path": "/profile",
           "router": "go_router",
           "screenWidget": "ProfilePage",
@@ -204,7 +232,7 @@ exports[`extractRoutes > matches snapshot: go_router_app.dart 1`] = `
           "children": [],
           "file": "fixtures/routes/go_router_app.dart",
           "fullPath": "/profile/edit",
-          "line": 39,
+          "line": 40,
           "path": "/profile/edit",
           "router": "go_router",
           "screenWidget": "EditProfileScreen",
@@ -212,9 +240,19 @@ exports[`extractRoutes > matches snapshot: go_router_app.dart 1`] = `
       ],
       "file": "fixtures/routes/go_router_app.dart",
       "isShell": true,
-      "line": 30,
+      "line": 31,
       "router": "go_router",
-      "screenWidget": "ScaffoldShell",
+      "shellWidget": "ScaffoldShell",
+    },
+    {
+      "children": [],
+      "file": "fixtures/routes/go_router_app.dart",
+      "fullPath": "/feed",
+      "line": 46,
+      "name": "feed",
+      "path": "/feed",
+      "router": "go_router",
+      "screenWidget": "FeedScreen",
     },
   ],
 }
@@ -223,6 +261,7 @@ exports[`extractRoutes > matches snapshot: go_router_app.dart 1`] = `
 exports[`extractRoutes > matches snapshot: stateful_shell.dart 1`] = `
 {
   "dynamic": [],
+  "routerGuards": [],
   "routes": [
     {
       "children": [
@@ -249,7 +288,7 @@ exports[`extractRoutes > matches snapshot: stateful_shell.dart 1`] = `
       "isShell": true,
       "line": 8,
       "router": "go_router",
-      "screenWidget": "HomeShell",
+      "shellWidget": "HomeShell",
     },
   ],
 }
