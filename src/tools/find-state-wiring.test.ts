@@ -115,6 +115,27 @@ describe('find_state_wiring (formatted response)', () => {
     expect(text).toContain('watchesProvider · settings_screen.dart:12 (syntactic)');
   });
 
+  it('resolves screen with BlocProvider<T> in a typed providers list (B5)', async () => {
+    // Both arrow and block-body create forms inside a MultiBlocProvider providers list
+    // must produce createsBloc edges despite the collection-position mis-parse.
+    const text = await callWiring({ screen: 'TypedBlocScreen' });
+    expect(text).toContain('→ ArrowBloc');
+    expect(text).toContain('→ BlockBodyBloc');
+    expect(text).toContain('createsBloc');
+  });
+
+  it('reverses correctly for typed BlocProvider<T> in a list — arrow create (B5)', async () => {
+    const text = await callWiring({ bloc: 'ArrowBloc' });
+    expect(text).toContain('← TypedBlocScreen');
+    expect(text).toContain('createsBloc');
+  });
+
+  it('reverses correctly for typed BlocProvider<T> in a list — block-body create (B5)', async () => {
+    const text = await callWiring({ bloc: 'BlockBodyBloc' });
+    expect(text).toContain('← TypedBlocScreen');
+    expect(text).toContain('createsBloc');
+  });
+
   it('requires exactly one filter', async () => {
     const none = await callWiring({});
     expect(none).toContain('exactly one of screen=, bloc=, or provider=');

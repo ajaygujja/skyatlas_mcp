@@ -189,9 +189,13 @@ function edgeAt(node: Node, from: string, out: Edge[]): void {
     return;
   }
   if (node.type === 'relational_expression') {
-    const bloc = blocWidgetTarget(node);
-    if (bloc) {
-      out.push({ from, to: bloc, kind: 'readsBloc', line: line(node), confidence: 'syntactic' });
+    const reads = blocWidgetTarget(node);
+    if (reads) {
+      out.push({ from, to: reads, kind: 'readsBloc', line: line(node), confidence: 'syntactic' });
+    }
+    const created = blocProviderCreatesFromMisparse(node);
+    if (created) {
+      out.push({ from, to: created, kind: 'createsBloc', line: line(node), confidence: 'syntactic' });
     }
   }
 }
@@ -258,6 +262,32 @@ function readWatchTarget(selector: Node): string | undefined {
   if (next?.type !== 'selector') return undefined;
   const ap = next.namedChildren.find((c) => c.type === 'argument_part');
   return ap ? firstTypeArg(ap) : undefined;
+}
+
+/**
+ * Recovery for `BlocProvider<T>(…)` at value position in a collection literal.
+ * The outer mis-parse wraps (inner_rel '>' record_literal); the inner is
+ * (identifier 'BlocProvider' '<' identifier T). T is the created bloc type.
+ * Observed:
+ *   (relational_expression
+ *     (relational_expression (identifier 'BlocProvider') ('<') (identifier T))
+ *     ('>') (record_literal …))
+ */
+function blocProviderCreatesFromMisparse(rel: Node): string | undefined {
+  const kids = rel.namedChildren;
+  const inner = kids[0];
+  if (inner?.type !== 'relational_expression') return undefined;
+  if (!kids.some((c) => c.type === 'relational_operator' && c.text === '>')) return undefined;
+  const innerKids = inner.namedChildren;
+  const head = innerKids[0];
+  if (head?.type !== 'identifier' || head.text !== 'BlocProvider') return undefined;
+  const ltIdx = innerKids.findIndex((c) => c.type === 'relational_operator' && c.text === '<');
+  if (ltIdx === -1) return undefined;
+  for (let i = ltIdx + 1; i < innerKids.length; i++) {
+    const k = innerKids[i];
+    if (k && (k.type === 'identifier' || k.type === 'type_identifier')) return k.text;
+  }
+  return undefined;
 }
 
 /**
