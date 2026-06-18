@@ -195,7 +195,13 @@ function edgeAt(node: Node, from: string, out: Edge[]): void {
     }
     const created = blocProviderCreatesFromMisparse(node);
     if (created) {
-      out.push({ from, to: created, kind: 'createsBloc', line: line(node), confidence: 'syntactic' });
+      out.push({
+        from,
+        to: created,
+        kind: 'createsBloc',
+        line: line(node),
+        confidence: 'syntactic',
+      });
     }
   }
 }

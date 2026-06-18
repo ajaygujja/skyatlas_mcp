@@ -37,7 +37,10 @@ export function parseTypeArgList(typeArgumentsNode: Node): string[] {
   let i = 0;
   while (i < children.length) {
     const c = children[i];
-    if (!c) { i += 1; continue; }
+    if (!c) {
+      i += 1;
+      continue;
+    }
     if (c.type === 'type_identifier' || c.type === 'identifier') {
       const next = children[i + 1];
       if (next?.type === 'type_arguments') {

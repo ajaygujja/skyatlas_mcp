@@ -48,7 +48,9 @@ export function registerFindSymbol(server: McpServer, getIndex: () => Promise<Pr
           .int()
           .min(0)
           .optional()
-          .describe(`Skip this many ranked matches before the page (default 0). Page size is ${String(MAX_RESULTS)}; the response prints the next offset when more remain.`),
+          .describe(
+            `Skip this many ranked matches before the page (default 0). Page size is ${String(MAX_RESULTS)}; the response prints the next offset when more remain.`,
+          ),
       },
     },
     async ({ query, kind, package: pkg, includeGenerated, offset }) => {

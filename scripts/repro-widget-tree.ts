@@ -10,7 +10,12 @@ import { initParser, parseText } from '../src/parser/parser.js';
 import { extractWidgets } from '../src/extractors/widget-extractor.js';
 import type { WidgetNode } from '../src/model/flutter.js';
 
-function renderNode(node: WidgetNode, slot: string | undefined, depth: number, out: string[]): void {
+function renderNode(
+  node: WidgetNode,
+  slot: string | undefined,
+  depth: number,
+  out: string[],
+): void {
   const indent = '  '.repeat(depth);
   const head = node.typeArgs ? `${node.widget}<${node.typeArgs.join(', ')}>` : node.widget;
   const prefix = slot ? `${slot}: ` : '';
