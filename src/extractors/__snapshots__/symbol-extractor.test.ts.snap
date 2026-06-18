@@ -2407,6 +2407,89 @@ exports[`extractSymbols > matches snapshot: widget_tree_repro.dart 1`] = `
           "annotations": [],
           "children": [],
           "file": "fixtures/basic/widget_tree_repro.dart",
+          "id": "fixtures/basic/widget_tree_repro.dart#GenericInListField.GenericInListField",
+          "kind": "constructor",
+          "modifiers": [
+            "const",
+          ],
+          "name": "GenericInListField",
+          "nameRange": {
+            "col": 9,
+            "line": 141,
+          },
+          "parameters": [
+            {
+              "name": "key",
+              "named": true,
+              "required": false,
+            },
+          ],
+          "parentId": "fixtures/basic/widget_tree_repro.dart#GenericInListField",
+          "qualifiedName": "GenericInListField.GenericInListField",
+          "range": {
+            "endLine": 141,
+            "startLine": 141,
+          },
+        },
+        {
+          "annotations": [
+            {
+              "name": "override",
+            },
+          ],
+          "children": [],
+          "file": "fixtures/basic/widget_tree_repro.dart",
+          "id": "fixtures/basic/widget_tree_repro.dart#GenericInListField.build",
+          "kind": "method",
+          "modifiers": [],
+          "name": "build",
+          "nameRange": {
+            "col": 10,
+            "line": 144,
+          },
+          "parameters": [
+            {
+              "name": "context",
+              "named": false,
+              "required": true,
+              "type": "BuildContext",
+            },
+          ],
+          "parentId": "fixtures/basic/widget_tree_repro.dart#GenericInListField",
+          "qualifiedName": "GenericInListField.build",
+          "range": {
+            "endLine": 160,
+            "startLine": 144,
+          },
+          "returnType": "Widget",
+        },
+      ],
+      "extendsType": {
+        "name": "StatelessWidget",
+        "typeArgs": [],
+      },
+      "file": "fixtures/basic/widget_tree_repro.dart",
+      "id": "fixtures/basic/widget_tree_repro.dart#GenericInListField",
+      "kind": "class",
+      "modifiers": [],
+      "name": "GenericInListField",
+      "nameRange": {
+        "col": 7,
+        "line": 140,
+      },
+      "qualifiedName": "GenericInListField",
+      "range": {
+        "endLine": 161,
+        "startLine": 140,
+      },
+    },
+    {
+      "annotations": [],
+      "children": [
+        {
+          "annotations": [],
+          "children": [],
+          "file": "fixtures/basic/widget_tree_repro.dart",
           "id": "fixtures/basic/widget_tree_repro.dart#EarlyReturnField.EarlyReturnField",
           "kind": "constructor",
           "modifiers": [
@@ -2415,7 +2498,7 @@ exports[`extractSymbols > matches snapshot: widget_tree_repro.dart 1`] = `
           "name": "EarlyReturnField",
           "nameRange": {
             "col": 9,
-            "line": 139,
+            "line": 167,
           },
           "parameters": [
             {
@@ -2432,8 +2515,8 @@ exports[`extractSymbols > matches snapshot: widget_tree_repro.dart 1`] = `
           "parentId": "fixtures/basic/widget_tree_repro.dart#EarlyReturnField",
           "qualifiedName": "EarlyReturnField.EarlyReturnField",
           "range": {
-            "endLine": 139,
-            "startLine": 139,
+            "endLine": 167,
+            "startLine": 167,
           },
         },
         {
@@ -2448,13 +2531,13 @@ exports[`extractSymbols > matches snapshot: widget_tree_repro.dart 1`] = `
           "name": "loading",
           "nameRange": {
             "col": 14,
-            "line": 141,
+            "line": 169,
           },
           "parentId": "fixtures/basic/widget_tree_repro.dart#EarlyReturnField",
           "qualifiedName": "EarlyReturnField.loading",
           "range": {
-            "endLine": 141,
-            "startLine": 141,
+            "endLine": 169,
+            "startLine": 169,
           },
           "returnType": "bool",
         },
@@ -2472,7 +2555,7 @@ exports[`extractSymbols > matches snapshot: widget_tree_repro.dart 1`] = `
           "name": "build",
           "nameRange": {
             "col": 10,
-            "line": 144,
+            "line": 172,
           },
           "parameters": [
             {
@@ -2485,8 +2568,8 @@ exports[`extractSymbols > matches snapshot: widget_tree_repro.dart 1`] = `
           "parentId": "fixtures/basic/widget_tree_repro.dart#EarlyReturnField",
           "qualifiedName": "EarlyReturnField.build",
           "range": {
-            "endLine": 151,
-            "startLine": 144,
+            "endLine": 179,
+            "startLine": 172,
           },
           "returnType": "Widget",
         },
@@ -2502,12 +2585,12 @@ exports[`extractSymbols > matches snapshot: widget_tree_repro.dart 1`] = `
       "name": "EarlyReturnField",
       "nameRange": {
         "col": 7,
-        "line": 138,
+        "line": 166,
       },
       "qualifiedName": "EarlyReturnField",
       "range": {
-        "endLine": 152,
-        "startLine": 138,
+        "endLine": 180,
+        "startLine": 166,
       },
     },
     {
@@ -2525,7 +2608,7 @@ exports[`extractSymbols > matches snapshot: widget_tree_repro.dart 1`] = `
           "name": "MultiProviderScreen",
           "nameRange": {
             "col": 9,
-            "line": 159,
+            "line": 187,
           },
           "parameters": [
             {
@@ -2537,8 +2620,8 @@ exports[`extractSymbols > matches snapshot: widget_tree_repro.dart 1`] = `
           "parentId": "fixtures/basic/widget_tree_repro.dart#MultiProviderScreen",
           "qualifiedName": "MultiProviderScreen.MultiProviderScreen",
           "range": {
-            "endLine": 159,
-            "startLine": 159,
+            "endLine": 187,
+            "startLine": 187,
           },
         },
         {
@@ -2555,7 +2638,7 @@ exports[`extractSymbols > matches snapshot: widget_tree_repro.dart 1`] = `
           "name": "build",
           "nameRange": {
             "col": 10,
-            "line": 162,
+            "line": 190,
           },
           "parameters": [
             {
@@ -2568,8 +2651,8 @@ exports[`extractSymbols > matches snapshot: widget_tree_repro.dart 1`] = `
           "parentId": "fixtures/basic/widget_tree_repro.dart#MultiProviderScreen",
           "qualifiedName": "MultiProviderScreen.build",
           "range": {
-            "endLine": 175,
-            "startLine": 162,
+            "endLine": 203,
+            "startLine": 190,
           },
           "returnType": "Widget",
         },
@@ -2585,12 +2668,12 @@ exports[`extractSymbols > matches snapshot: widget_tree_repro.dart 1`] = `
       "name": "MultiProviderScreen",
       "nameRange": {
         "col": 7,
-        "line": 158,
+        "line": 186,
       },
       "qualifiedName": "MultiProviderScreen",
       "range": {
-        "endLine": 176,
-        "startLine": 158,
+        "endLine": 204,
+        "startLine": 186,
       },
     },
   ],

@@ -132,6 +132,34 @@ class SpreadMappedChildrenField extends StatelessWidget {
   }
 }
 
+// ── BUG B4 (generic-in-list variant): two-type-arg generic at a list position. ──
+// Mirrors a BlocBuilder spliced into a `children:` array. The `<A, B>` mis-parses
+// into two sibling relational_expressions; the builder's arg list spills past the
+// closing `>`. Expect: the Column subtree under `builder:` is recovered. Actual
+// (before): only the type args survived, the builder body was dropped.
+class GenericInListField extends StatelessWidget {
+  const GenericInListField({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        const Header(),
+        BlocBuilder<SomeBloc, SomeState>(
+          builder: (context, state) {
+            return Column(
+              children: [
+                const Text('row 1'),
+                const Text('row 2'),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
 // ── BUG B3 (early-return variant): loading guard return hides the main tree. ──
 // Mirrors _IssueHistoryViewState. Expect: the ListView branch.
 // Actual: only the first `return` (loading SizedBox) is shown.

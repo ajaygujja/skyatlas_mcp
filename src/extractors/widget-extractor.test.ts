@@ -78,7 +78,8 @@ describe('extractWidgets', () => {
     const blocBuilder = tree?.namedSlots['body']?.[0];
     expect(blocBuilder?.widget).toBe('BlocBuilder');
     expect(blocBuilder?.typeArgs).toEqual(['HomeBloc', 'HomeState']);
-    expect(blocBuilder?.recoveredFromMisparse).toBe(true);
+    // Args and type params were recovered in full, so the node is not flagged.
+    expect(blocBuilder?.recoveredFromMisparse).toBeUndefined();
     // The real builder subtree survives the mis-parse.
     const listView = blocBuilder?.namedSlots['builder']?.[0];
     expect(listView?.widget).toBe('ListView.builder');
@@ -142,6 +143,20 @@ describe('extractWidgets', () => {
     expect(mapped?.dynamic).toBe('mapped');
     expect(mapped?.isBuilderCallback).toBeUndefined();
     expect(children.find((c) => c.widget === '...footerWidgets')?.dynamic).toBe('spread');
+  });
+
+  it('recovers the builder subtree of a two-arg generic at a list position', async () => {
+    const { tree } = await parseFile(resolve(FIXTURES, '../basic/widget_tree_repro.dart'));
+    const widgets = extractWidgets(tree, 'fixtures/basic/widget_tree_repro.dart');
+    const column = widgets.find((w) => w.name === 'GenericInListField')?.buildTree?.[0];
+    const blocBuilder = (column?.namedSlots['children'] ?? []).find((c) => c.widget === 'BlocBuilder');
+    expect(blocBuilder?.typeArgs).toEqual(['SomeBloc', 'SomeState']);
+    // The arg list spilled past the closing `>` is now captured, so the builder
+    // subtree survives and the node is no longer flagged best-effort.
+    expect(blocBuilder?.recoveredFromMisparse).toBeUndefined();
+    const inner = blocBuilder?.namedSlots['builder']?.[0];
+    expect(inner?.widget).toBe('Column');
+    expect((inner?.namedSlots['children'] ?? []).map((c) => c.widget)).toEqual(['Text', 'Text']);
   });
 
   it('marks a collection-`if` child conditional and a spread as dynamic', async () => {

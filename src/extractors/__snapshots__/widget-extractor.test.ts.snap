@@ -118,7 +118,6 @@ exports[`extractWidgets > matches snapshot: home_screen.dart 1`] = `
                   },
                 ],
               },
-              "recoveredFromMisparse": true,
               "typeArgs": [
                 "HomeBloc",
                 "HomeState",
