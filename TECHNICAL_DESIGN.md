@@ -624,7 +624,7 @@ Roughly in expected-value order. Ship v1 first; let real team usage pick what's 
 1. **npm registry** — package name reserved early; publish with `bin` entry so users run it
    without installing:
    ```bash
-   claude mcp add skyatlas -- npx -y skyatlas_mcp
+   claude mcp add skyatlas -- npx -y skyatlas-mcp
    ```
    That one line is the entire install story. The WASM parser choice (§4.3) is what makes this
    work first-try on macOS/Windows/Linux/ARM — protect that property in every dependency decision.

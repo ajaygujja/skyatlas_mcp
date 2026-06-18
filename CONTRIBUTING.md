@@ -28,18 +28,5 @@ pnpm dump-tree <file> # inspect the CST of a Dart snippet
 pnpm benchmark        # cold/warm index timings
 ```
 
-## Dogfood ladder (team rollout — Phase 5)
-
-The exit criterion for rollout is _a teammate installs from the [README](README.md) alone, with no
-help_. Roll out in that spirit:
-
-1. **You, one week.** Use it daily on a real repo. Every wrong or missing answer → add the failing
-   fixture, then fix.
-2. **Two teammates.** They install from the README only. If they get stuck, the README is the bug —
-   fix the docs, not just the person.
-3. **Whole team.** Watch real Claude/Cursor sessions actually _call_ the tools (see the §12 "assistant
-   ignores tools" risk). If they grep instead, iterate the tool descriptions and the `CLAUDE.md`
-   navigation snippet in the README.
-
-Enterprise fixtures (real repo files) stay in a **private overlay** and must never reach a public
-repo (§11.1).
+Before opening a PR, run all of `pnpm build && pnpm lint && pnpm test && pnpm format:check` and fill
+in the pull-request checklist.

@@ -1,4 +1,4 @@
-# Using, Verifying & Improving skyatlas_mcp
+# Using, Verifying & Improving skyatlas-mcp
 
 A complete guide to running this server against a real Flutter project, proving it
 actually works, understanding when it doesn't, sharing it with a team, and making it
@@ -36,7 +36,7 @@ questions about its structure** — where things are defined, how routes nest, w
 or Provider wires to which screen, what a widget tree looks like.
 
 It does **not** run your app, change your code, or call the network. It only **reads**
-`.dart` files, builds an in-memory map (called the *index*), and keeps that map fresh as
+`.dart` files, builds an in-memory map (called the _index_), and keeps that map fresh as
 you edit. It exposes six question-answering **tools** over a protocol called **MCP**.
 
 Think of it as a librarian for your codebase: it has read every file and can instantly
@@ -49,12 +49,12 @@ instead of the assistant having to grep and open ten files to find out.
 
 There are two complementary tools in the Flutter MCP world:
 
-| | **skyatlas_mcp** (this) | **Official Dart MCP server** |
-|---|---|---|
-| Role | The **map** — whole-repo structure | The **microscope** — one symbol in depth |
-| Speed | Fast, always-on, syntactic | Slower, semantic (full type resolution) |
+|         | **skyatlas_mcp** (this)             | **Official Dart MCP server**                      |
+| ------- | ----------------------------------- | ------------------------------------------------- |
+| Role    | The **map** — whole-repo structure  | The **microscope** — one symbol in depth          |
+| Speed   | Fast, always-on, syntactic          | Slower, semantic (full type resolution)           |
 | Answers | "Where is it? How does it connect?" | "What is its resolved type? Find all references." |
-| Needs | Just the source files | The Dart SDK + analyzer running |
+| Needs   | Just the source files               | The Dart SDK + analyzer running                   |
 
 Use this server to **orient and locate** (get a `file:line`), then hand that exact
 location to the Dart server or your editor for **resolved semantic truth**. They are
@@ -72,18 +72,18 @@ and that's correct.** Here's why.
   can hit `/health` to check it.
 - An MCP server is **launched on demand by an AI client** (Claude Code, Cursor). It talks
   to that one client over **stdin/stdout** (a pipe), using JSON messages. There is no
-  port and no second caller, so there's nothing to expose a `/health` route *to*.
+  port and no second caller, so there's nothing to expose a `/health` route _to_.
 
 The protocol itself provides the equivalents you're looking for:
 
-| What you'd expect | The MCP equivalent here | How you run it |
-|---|---|---|
-| `init` (set it up) | register the server with your client | `claude mcp add …` |
-| `status` (is it up?) | the client lists connection state | `claude mcp list` → ✓ Connected |
-| `health` (is it OK?) | the `get_project_map` "Index health" line | ask the AI: *"Call get_project_map"* |
-| coverage / diagnostics | the **`doctor`** command (this repo) | `pnpm doctor <path>` |
+| What you'd expect      | The MCP equivalent here                   | How you run it                       |
+| ---------------------- | ----------------------------------------- | ------------------------------------ |
+| `init` (set it up)     | register the server with your client      | `claude mcp add …`                   |
+| `status` (is it up?)   | the client lists connection state         | `claude mcp list` → ✓ Connected      |
+| `health` (is it OK?)   | the `get_project_map` "Index health" line | ask the AI: _"Call get_project_map"_ |
+| coverage / diagnostics | the **`doctor`** command (this repo)      | `pnpm doctor <path>`                 |
 
-So: the AI client *is* the monitor. The pipe being open means the process is alive; a
+So: the AI client _is_ the monitor. The pipe being open means the process is alive; a
 tool call returning data means it's working. For deeper "did it parse my whole project"
 questions, that's what `doctor` is for (section 6).
 
@@ -91,22 +91,19 @@ questions, that's what `doctor` is for (section 6).
 
 ## 4. Quick start — point it at a Flutter project
 
-You only build this server **once**. After that you register it against whichever Flutter
-repo you want mapped.
+Nothing to build — `npx` fetches and runs the published package. The path at the **end** is
+the Flutter project to index.
 
 ```bash
-# 1. Build the server (do this once, inside THIS repo).
-cd /abs/path/to/skyatlas_mcp
-pnpm install
-pnpm build                     # produces dist/server.js
-
-# 2. Register it against YOUR Flutter app.
-#    The path at the END is the Flutter project to index — NOT this repo.
-claude mcp add skyatlas -- node /abs/path/to/skyatlas_mcp/dist/server.js /abs/path/to/your-flutter-app
+claude mcp add skyatlas -- npx -y skyatlas-mcp /abs/path/to/your-flutter-app
 ```
 
-Then, in an AI chat opened inside your Flutter app, say *"Call get_project_map."* You
+Then, in an AI chat opened inside your Flutter app, say _"Call get_project_map."_ You
 should get a map listing packages, folder counts, and the detected stack.
+
+> Working from a clone instead (to run `doctor`/`benchmark` or hack on the server)? Build once
+> with `pnpm install && pnpm build`, then register the local build:
+> `claude mcp add skyatlas -- node /abs/path/to/skyatlas_mcp/dist/server.js /abs/path/to/your-flutter-app`
 
 > **Tip:** add `.skyatlas/` to your Flutter app's `.gitignore`. The server writes a
 > warm-start cache there; it should not be committed.
@@ -117,13 +114,13 @@ should get a map listing packages, folder counts, and the detected stack.
 which is the most common reason the tools "connect" but never appear in a session: a
 `local` server is private to the **one directory you ran `add` in**. Run the client from
 anywhere else and the tools are absent — even though `claude mcp get` still reports
-`✓ Connected` (that only proves the process launches, not that *this* session loaded it).
+`✓ Connected` (that only proves the process launches, not that _this_ session loaded it).
 
-| Scope | Flag | Where tools appear | Stored in | Use when |
-|-------|------|--------------------|-----------|----------|
-| **user** | `-s user` | every project, every directory | `~/.claude.json` (global) | you want it always on, just for you |
-| **project** | `-s project` | anyone who opens this repo | `.mcp.json` in the repo (commit it) | sharing with teammates |
-| **local** *(default)* | *(none)* | only the dir you ran `add` in | `~/.claude.json` under that project | quick one-off, single repo |
+| Scope                 | Flag         | Where tools appear             | Stored in                           | Use when                            |
+| --------------------- | ------------ | ------------------------------ | ----------------------------------- | ----------------------------------- |
+| **user**              | `-s user`    | every project, every directory | `~/.claude.json` (global)           | you want it always on, just for you |
+| **project**           | `-s project` | anyone who opens this repo     | `.mcp.json` in the repo (commit it) | sharing with teammates              |
+| **local** _(default)_ | _(none)_     | only the dir you ran `add` in  | `~/.claude.json` under that project | quick one-off, single repo          |
 
 ```bash
 # Recommended: available in every directory, private to you.
@@ -139,6 +136,7 @@ claude mcp add skyatlas -- node /abs/path/to/skyatlas_mcp/dist/server.js /abs/pa
 
 > **Switching scope?** Remove the old registration first, then re-add — `add` refuses a
 > duplicate name (`MCP server skyatlas already exists`):
+>
 > ```bash
 > claude mcp remove skyatlas
 > claude mcp add -s user skyatlas -- node /abs/path/to/skyatlas_mcp/dist/server.js /abs/path/to/your-flutter-app
@@ -156,26 +154,32 @@ There are three independent things you might mean by "is it working?" Check the 
 actually care about.
 
 ### a) Is it connected? (status)
+
 ```bash
 claude mcp list
 # → skyatlas … ✓ Connected
 ```
+
 This proves the client can launch the process and complete the MCP handshake.
 
 ### b) Did it parse my whole project? (coverage)
+
 This is the important one, and the reason `doctor` exists:
+
 ```bash
 pnpm -C /abs/path/to/skyatlas_mcp doctor -- /abs/path/to/your-flutter-app --cold
 ```
+
 > **Note the `--`.** When you pass flags like `--cold` or `--json`, put a `--` before the
 > arguments so `pnpm` forwards them to the script instead of trying to interpret them as its
 > own options (otherwise you get `ERROR Unknown option: 'cold'`). A bare path with no flags
 > doesn't need it.
-See sections 6–7. This is also the only check that runs **without** an AI client — pure
-parse numbers straight from the indexer.
+> See sections 6–7. This is also the only check that runs **without** an AI client — pure
+> parse numbers straight from the indexer.
 
 ### c) Does it stay fresh as I edit? (live)
-1. Ask the AI: *"Show me the route graph."* (note the routes)
+
+1. Ask the AI: _"Show me the route graph."_ (note the routes)
 2. Edit a route file in your app and save.
 3. Ask again. The change should appear with **no restart** — a filesystem watcher
    re-indexes changed files incrementally (a single saved file in well under 50 ms).
@@ -202,7 +206,7 @@ pnpm doctor /abs/path/to/your-flutter-app --json     # machine-readable (for CI/
 
 ### Running it **from your Flutter project's directory** (most common)
 
-You asked specifically about this. `doctor` is a script that lives in *this* repo, so
+You asked specifically about this. `doctor` is a script that lives in _this_ repo, so
 when your terminal is sitting inside your Flutter app you point `pnpm` at this repo with
 `-C` (change-directory) and pass `$(pwd)` (your current folder) as the workspace:
 
@@ -222,33 +226,37 @@ pnpm -C "$FI" doctor -- "$(pwd)" --cold
 pnpm -C "$FI" doctor -- "$(pwd)" --json > doctor.json
 ```
 
-`$(pwd)` expands to your current directory *before* `pnpm` runs, so the report is always
+`$(pwd)` expands to your current directory _before_ `pnpm` runs, so the report is always
 about the Flutter project you're standing in, regardless of where the server lives.
 
 > **Why the `--`?** `pnpm` parses anything starting with `--` (like `--cold`, `--json`) as
-> one of *its own* options and errors with `ERROR Unknown option: 'cold'`. Putting `--`
+> one of _its own_ options and errors with `ERROR Unknown option: 'cold'`. Putting `--`
 > before the script arguments tells `pnpm` "stop parsing, forward the rest verbatim." A
 > command with only a path and no flags doesn't need it.
 
 > **Even shorter (optional):** add a shell alias to your `~/.zshrc` — bake the `--` in so you
 > never think about it:
+>
 > ```bash
 > alias fidoctor='pnpm -C /abs/path/to/skyatlas_mcp doctor --'
 > ```
+>
 > Then from any Flutter project: `fidoctor "$(pwd)" --cold`.
 
 ### Quieting the logs
 
 The server logs startup info to **stderr** as JSON. To see only the report, lower the log
 level:
+
 ```bash
 SKYATLAS_LOG=warn pnpm -C "$FI" doctor -- "$(pwd)" --cold
 ```
 
 ### Exit code (for CI)
 
-`doctor` exits **`1`** if any file was skipped entirely (a *Tier A* failure, see below),
+`doctor` exits **`1`** if any file was skipped entirely (a _Tier A_ failure, see below),
 otherwise **`0`**. That means you can gate a pipeline on it:
+
 ```bash
 pnpm -C "$FI" doctor -- "$(pwd)" --json || echo "parse coverage regressed"
 ```
@@ -290,13 +298,13 @@ Tier B — indexed with localized syntax errors (3):
 
 ### The two failure tiers (this is the key concept)
 
-There are two *different* ways a file can be less than perfect. Don't confuse them.
+There are two _different_ ways a file can be less than perfect. Don't confuse them.
 
 **Tier A — skipped entirely.** The file could not be read (permissions, encoding) or the
 parser threw. The file is **not in the index at all** — the AI can't see it. This is the
 serious one. You want **zero**. Each entry shows the path and the reason.
 
-**Tier B — indexed, with localized syntax errors.** The file *was* indexed, but somewhere
+**Tier B — indexed, with localized syntax errors.** The file _was_ indexed, but somewhere
 inside it the grammar hit Dart syntax it doesn't recognize. The parser marks that one spot
 as an error and **keeps going** — the rest of the file is fully usable. This is "graceful
 degradation": one weird line doesn't blind the AI to the whole file. Each entry shows the
@@ -309,7 +317,7 @@ your richest source of improvements (next section).
 
 ## 7b. The `benchmark` command (performance, not coverage)
 
-`doctor` answers *"did it parse correctly?"* `benchmark` answers a different question:
+`doctor` answers _"did it parse correctly?"_ `benchmark` answers a different question:
 **"how fast and how heavy is indexing?"** Use it only when indexing feels slow, or when you
 change the parser/indexer and want to catch a slowdown — for everyday "is it working" checks,
 `doctor` is what you want.
@@ -391,28 +399,37 @@ syntax can never silently break again.
 Three levels, easiest to most polished.
 
 ### a) Per-repo, shared through Git
+
 Inside your Flutter app:
+
 ```bash
 claude mcp add skyatlas -s project -- node /abs/path/to/skyatlas_mcp/dist/server.js .
 ```
+
 This writes a `.mcp.json` file into the Flutter repo. Commit it; teammates who pull get the
 server auto-registered. **Caveat:** the `node …/dist/server.js` path must also exist on
 their machine — so they still need this server built somewhere. That leads to (b).
 
 ### b) Publish to npm (the real team-scale answer)
+
 `package.json` is already publish-ready (`bin` + `files` are set). Publish it:
+
 ```bash
 npm publish                       # public
 # or, for an internal org registry / scope:
-#   name it "@yourorg/skyatlas_mcp" and: npm publish --access restricted
+#   name it "@yourorg/skyatlas-mcp" and: npm publish --access restricted
 ```
+
 Teammates then need **no clone and no build**:
+
 ```bash
-claude mcp add skyatlas -- npx -y skyatlas_mcp /abs/path/to/their-flutter-app
+claude mcp add skyatlas -- npx -y skyatlas-mcp /abs/path/to/their-flutter-app
 ```
+
 `npx` downloads and runs it on demand.
 
 ### c) Just send the repo
+
 They `git clone`, `pnpm install && pnpm build`, then register as in section 4. Most manual,
 fine for one teammate.
 
@@ -426,24 +443,26 @@ The synthetic fixtures in `fixtures/` only cover syntax we thought of. To genuin
 the parser you must feed it **real, varied Dart**. In order of effort:
 
 1. **Run `doctor` against large public Flutter repos — free, today, no users needed.**
+
    ```bash
    git clone --depth 1 https://github.com/flutter/gallery /tmp/gallery
    pnpm -C "$FI" doctor -- /tmp/gallery --cold
    ```
+
    Good targets: `flutter/gallery`, `flutter/samples`, `appflowy-io/appflowy`,
    `immich-app/immich`, `localsend/localsend`. Each Tier-B file they surface is a real
    grammar gap → run the loop in section 8.
 
 2. **From real users — let the report do the collecting.** Ask them to run
    `pnpm -C <repo> doctor -- <their-app> --json > doctor.json` and send the JSON. It already
-   lists exact files and `line:col`. To actually *fix* a gap you still need the offending
+   lists exact files and `line:col`. To actually _fix_ a gap you still need the offending
    snippet, so your issue template should ask for the minimal lines (the report tells them
    how to find it with `dump-tree`).
 
 3. **Keep the privacy promise.** This server's selling point is "no network, your code
    never leaves the machine." So the model is **pull, not push**: `doctor` produces a local
-   report and the user *chooses* to share it. If you ever want aggregate signal, the only
-   acceptable form is **opt-in** telemetry of *which grammar node-types errored* — never
+   report and the user _chooses_ to share it. If you ever want aggregate signal, the only
+   acceptable form is **opt-in** telemetry of _which grammar node-types errored_ — never
    source text.
 
 4. **Every confirmed gap becomes a permanent regression test** (section 8). That's how the
@@ -458,7 +477,7 @@ If you are an AI assistant working in a repo that has this server registered:
 
 - Call **`get_project_map` once** at the start of a session to orient — packages, layout,
   detected stack, and an **index-health line**. If that line reports files with syntax
-  errors, treat structural answers about *those files* as lower-confidence and verify with
+  errors, treat structural answers about _those files_ as lower-confidence and verify with
   grep or the Dart server.
 - Use **`find_symbol` / `get_symbol`** to locate and inspect declarations; **`get_route_graph`**,
   **`get_widget_tree`**, **`find_state_wiring`** for Flutter-domain questions. Each returns
@@ -509,7 +528,7 @@ pnpm -C "$FI" test
 ## Glossary
 
 - **MCP (Model Context Protocol)** — a standard way for AI assistants to call external
-  tools. The assistant is the *client*; this program is a *server* it launches.
+  tools. The assistant is the _client_; this program is a _server_ it launches.
 - **stdio / pipe** — the channel the client and server talk over: messages in on standard
   input, replies out on standard output. No network, no port.
 - **stdout / stderr** — two output streams. This server reserves **stdout** for the MCP
@@ -526,8 +545,11 @@ pnpm -C "$FI" test
   syntax.
 - **Warm-start cache** — `.skyatlas/cache.json` inside the indexed repo; lets a
   restart skip re-parsing unchanged files. Safe to delete (`--cold` does).
-- **Cold vs warm** — *cold* = ignore the cache and parse everything; *warm* = reuse the
+- **Cold vs warm** — _cold_ = ignore the cache and parse everything; _warm_ = reuse the
   cache for unchanged files (faster).
 - **pnpm `-C <dir>`** — run a pnpm command as if you were inside `<dir>`, even though your
   terminal is somewhere else. Used here to run this repo's scripts from your Flutter folder.
+
+```
+
 ```

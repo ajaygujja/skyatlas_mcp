@@ -14,7 +14,7 @@ body:
     attributes:
       label: What happened
       description: What did the tool return, and what did you expect instead?
-      placeholder: "get_widget_tree returned an empty tree for a widget that has a build() method."
+      placeholder: 'get_widget_tree returned an empty tree for a widget that has a build() method.'
     validations:
       required: true
 
@@ -31,7 +31,7 @@ body:
     id: tool
     attributes:
       label: Which tool / MCP client
-      placeholder: "get_widget_tree via Claude Desktop"
+      placeholder: 'get_widget_tree via Claude Desktop'
     validations:
       required: true
 
@@ -39,7 +39,7 @@ body:
     id: env
     attributes:
       label: Environment
-      description: Run `pnpm doctor` (or `npx skyatlas-mcp` + the doctor script) and paste output. Include OS and Node version.
+      description: skyatlas-mcp version, OS, and Node version. If you have a clone, paste `pnpm doctor <path>` output too.
       placeholder: |
         skyatlas-mcp 0.1.0
         Node v20.x, macOS 15
