@@ -193,6 +193,34 @@ export interface RouteInfo {
   children: RouteInfo[];
   /** redirect/guard identifiers when present (`redirect: authGuard`, `guards: [AuthGuard]`). */
   guards?: string[];
+  /**
+   * Set when this node is a `...Owner.method()` spread mounting a static route
+   * table rather than a route itself. get_route_graph resolves the owner to its
+   * declaring file and splices that table's routes in place; an owner whose
+   * table is not indexed degrades to an honest "unknown" dynamic note.
+   */
+  spread?: { owner: string; method: string };
+}
+
+/**
+ * A static route table returned by a class method (`static List<RouteBase>
+ * routes() => [...]`), the target of a `...Owner.method()` spread. Extracted
+ * per file like any route forest; get_route_graph matches a spread to its table
+ * by owner + method to enumerate routes that are syntactically present but
+ * mounted indirectly.
+ */
+export interface NamedRouteTable {
+  /** Declaring class, matched against the resolved spread owner. */
+  owner: string;
+  /** Method name (`routes`), matched against the spread's invoked method. */
+  method: string;
+  file: string;
+  /** 1-based line of the method declaration. */
+  line: number;
+  /** Routes parsed from the method's list-literal body. */
+  routes: RouteInfo[];
+  /** Dynamic constructs within the table body the syntax layer can't enumerate. */
+  dynamic: DynamicRouteNote[];
 }
 
 /**

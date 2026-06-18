@@ -73,4 +73,25 @@ describe('get_route_graph (formatted response)', () => {
     expect(text).toContain('provided by reference');
     expect(text).toContain('collection-for/if');
   });
+
+  it('splices `...Owner.routes()` static tables into the graph', async () => {
+    const text = await callRouteGraph({ router: 'go_router' });
+    expect(text).toContain('- /host → HostScreen');
+    // Routes mounted via a spread are enumerated, not reported unknown.
+    expect(text).toContain('- /module → ModuleScreen');
+    expect(text).toContain('- /module/detail → ModuleDetailScreen');
+    expect(text).toContain('- /extra → ExtraScreen');
+  });
+
+  it('keeps a mount whose table is not indexed honestly unknown', async () => {
+    const text = await callRouteGraph({ router: 'go_router' });
+    expect(text).toContain('...MissingNavigation.routes()');
+    expect(text).toContain('no static table indexed');
+  });
+
+  it('terminates a self-referential table without duplicating its routes', async () => {
+    const text = await callRouteGraph({ router: 'go_router' });
+    const cyclic = text.split('\n').filter((l) => l.includes('/cyclic → CyclicScreen'));
+    expect(cyclic).toHaveLength(1);
+  });
 });

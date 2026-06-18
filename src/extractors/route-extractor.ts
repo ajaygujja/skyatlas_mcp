@@ -18,7 +18,12 @@
  * selector between the identifier and the argument selector; argsOfCall skips it.
  */
 import type { Node, Tree } from 'web-tree-sitter';
-import type { DynamicRouteNote, RouteInfo, RouterGuardNote } from '../model/flutter.js';
+import type {
+  DynamicRouteNote,
+  NamedRouteTable,
+  RouteInfo,
+  RouterGuardNote,
+} from '../model/flutter.js';
 
 export interface RouteExtraction {
   /** Top-level routes (forest); nested routes hang off `children`. */
@@ -27,6 +32,8 @@ export interface RouteExtraction {
   dynamic: DynamicRouteNote[];
   /** Router-level guards (go_router global `redirect:`), one per router. */
   routerGuards: RouterGuardNote[];
+  /** Static `static List<RouteBase> routes()` tables, the target of mount spreads. */
+  routeTables: NamedRouteTable[];
 }
 
 /** go_router route constructors. Shells carry no own path. */
@@ -35,6 +42,9 @@ const SHELL_CTORS = new Set(['ShellRoute', 'StatefulShellRoute']);
 
 /** auto_route table entries: navigable pages and `RedirectRoute` aliases. */
 const AUTO_ROUTE_CTORS = new Set(['AutoRoute', 'RedirectRoute']);
+
+/** Element types of a `List<…>` a route-table method may return. */
+const ROUTE_LIST_ELEMENTS = new Set(['RouteBase', 'GoRoute', 'ShellRoute', 'StatefulShellRoute']);
 
 /**
  * State-management wrappers a route builder may return around the real screen
@@ -63,7 +73,8 @@ export function extractRoutes(tree: Tree, relPath: string): RouteExtraction {
   const routerGuards: RouterGuardNote[] = [];
   extractGoRouter(tree.rootNode, relPath, routes, dynamic, routerGuards);
   extractAutoRoute(tree.rootNode, relPath, routes, dynamic);
-  return { routes, dynamic, routerGuards };
+  const routeTables = extractRouteTables(tree.rootNode, relPath);
+  return { routes, dynamic, routerGuards, routeTables };
 }
 
 // ───────────────────────── go_router ─────────────────────────
@@ -131,12 +142,19 @@ function parseGoRouteList(
       continue;
     }
     if (child.type === 'spread_element') {
-      dynamic.push({
-        router: 'go_router',
-        file: relPath,
-        line: line(child),
-        reason: `routes spread from \`${child.text}\` — contents unknown`,
-      });
+      const mount = spreadMount(child);
+      if (mount) {
+        // A `...Owner.method()` spread mounts a static table resolved at graph
+        // time; carry the target so get_route_graph can splice its routes in.
+        out.push({ router: 'go_router', file: relPath, line: line(child), children: [], spread: mount });
+      } else {
+        dynamic.push({
+          router: 'go_router',
+          file: relPath,
+          line: line(child),
+          reason: `routes spread from \`${child.text}\` — contents unknown`,
+        });
+      }
       continue;
     }
     if (child.type === 'identifier' && GO_ROUTE_CTORS.has(child.text)) {
@@ -227,6 +245,87 @@ function joinPath(parent: string | undefined, path: string | undefined): string 
   const base = parent ?? '';
   const joined = base.endsWith('/') ? base + path : `${base}/${path}`;
   return joined.replace(/\/{2,}/g, '/');
+}
+
+/**
+ * Owner + method of a `...Owner.method()` spread, or undefined for any other
+ * spread. Only this exact shape — `identifier . identifier ()` — names a static
+ * table the index can resolve; `...legacyRoutes` (a value) and `...x.field` (no
+ * call) carry no enumerable table and stay honest dynamic notes. Observed:
+ *   (spread_element (identifier 'Owner')
+ *     (selector (unconditional_assignable_selector (identifier 'method')))
+ *     (selector (argument_part (arguments))))
+ */
+function spreadMount(spread: Node): { owner: string; method: string } | undefined {
+  const kids = spread.namedChildren;
+  const owner = kids[0];
+  if (owner?.type !== 'identifier') return undefined;
+  const memberSel = kids[1];
+  const method = memberSel?.namedChildren
+    .find((c) => c.type === 'unconditional_assignable_selector')
+    ?.namedChildren.find((c) => c.type === 'identifier');
+  if (!method) return undefined;
+  const callSel = kids[2];
+  const isCall = callSel?.type === 'selector' && callSel.namedChildren[0]?.type === 'argument_part';
+  if (!isCall) return undefined;
+  return { owner: owner.text, method: method.text };
+}
+
+/**
+ * Static route-table methods: `static List<RouteBase> routes() => [...]`. The
+ * `method_signature` and its `function_body` are sibling children of the class
+ * body, so the body is taken from the signature's next sibling. The body's
+ * list-literal is parsed by the same path as any inline route list, so nested
+ * shells, child routes, and dynamic constructs are handled identically.
+ */
+function extractRouteTables(root: Node, relPath: string): NamedRouteTable[] {
+  const tables: NamedRouteTable[] = [];
+  for (const cls of root.descendantsOfType('class_definition')) {
+    const owner = cls.namedChildren.find((c) => c.type === 'identifier')?.text;
+    const body = cls.namedChildren.find((c) => c.type === 'class_body');
+    if (!owner || !body) continue;
+    for (let i = 0; i < body.namedChildren.length; i++) {
+      const sig = body.namedChildren[i];
+      if (sig?.type !== 'method_signature' || !isStaticRouteListMethod(sig)) continue;
+      const method = routeMethodName(sig);
+      const list = bodyListLiteral(body.namedChildren[i + 1]);
+      if (!method || !list) continue;
+      const routes: RouteInfo[] = [];
+      const dynamic: DynamicRouteNote[] = [];
+      parseGoRouteList(list, undefined, relPath, routes, dynamic);
+      tables.push({ owner, method, file: relPath, line: line(sig), routes, dynamic });
+    }
+  }
+  return tables;
+}
+
+/** A `static` method whose return type is `List<RouteBase|GoRoute|…>`. */
+function isStaticRouteListMethod(sig: Node): boolean {
+  if (!sig.children.some((c) => c.type === 'static')) return false;
+  const fnSig = sig.namedChildren.find((c) => c.type === 'function_signature');
+  if (fnSig?.namedChildren.find((c) => c.type === 'type_identifier')?.text !== 'List') return false;
+  const elem = fnSig.namedChildren
+    .find((c) => c.type === 'type_arguments')
+    ?.namedChildren.find((c) => c.type === 'type_identifier');
+  return elem !== undefined && ROUTE_LIST_ELEMENTS.has(elem.text);
+}
+
+/** The method's own name, from its `function_signature`. */
+function routeMethodName(sig: Node): string | undefined {
+  return sig.namedChildren
+    .find((c) => c.type === 'function_signature')
+    ?.namedChildren.find((c) => c.type === 'identifier')?.text;
+}
+
+/** The returned list of an arrow (`=> [...]`) or block (`{ return [...]; }`) body. */
+function bodyListLiteral(body: Node | undefined): Node | undefined {
+  if (body?.type !== 'function_body') return undefined;
+  const arrow = body.namedChildren.find((c) => c.type === 'list_literal');
+  if (arrow) return arrow;
+  const ret = body.namedChildren
+    .find((c) => c.type === 'block')
+    ?.namedChildren.find((c) => c.type === 'return_statement');
+  return ret?.namedChildren.find((c) => c.type === 'list_literal');
 }
 
 // ───────────────────────── auto_route ─────────────────────────

@@ -10,6 +10,7 @@ import type {
   BlocInfo,
   DynamicRouteNote,
   Edge,
+  NamedRouteTable,
   ProviderInfo,
   RouteInfo,
   RouterGuardNote,
@@ -44,6 +45,8 @@ export interface FileEntry {
   routes: RouteInfo[];
   /** Route tables in this file the syntax layer cannot enumerate (Phase 3d). */
   dynamicRoutes: DynamicRouteNote[];
+  /** Static route-table methods declared in this file, the target of mount spreads. */
+  routeTables: NamedRouteTable[];
   /** Router-level guards declared in this file (go_router global `redirect:`). */
   routerGuards: RouterGuardNote[];
   /** Partial state-management edges sourced from this file (Phase 3b bloc + 3c provider). */
@@ -68,6 +71,8 @@ export class ProjectIndex {
   readonly routes: RouteInfo[] = [];
   /** Dynamic route tables across files, for honest get_route_graph reporting (Phase 3d). */
   readonly dynamicRoutes: DynamicRouteNote[] = [];
+  /** Static route-table methods across files, spliced into the graph by mount spreads. */
+  readonly routeTables: NamedRouteTable[] = [];
   /** Router-level guards across files (go_router global `redirect:`). */
   readonly routerGuards: RouterGuardNote[] = [];
   /** Cross-cutting syntactic edges, aggregated across files (Phase 3b → 3e). */
@@ -85,6 +90,7 @@ export class ProjectIndex {
     this.providers.length = 0;
     this.routes.length = 0;
     this.dynamicRoutes.length = 0;
+    this.routeTables.length = 0;
     this.routerGuards.length = 0;
     this.edges.length = 0;
     this.packages = [];
@@ -120,6 +126,7 @@ export class ProjectIndex {
     this.providers.push(...entry.providers);
     this.routes.push(...entry.routes);
     this.dynamicRoutes.push(...entry.dynamicRoutes);
+    this.routeTables.push(...entry.routeTables);
     this.routerGuards.push(...entry.routerGuards);
     this.edges.push(...entry.edges);
   }
@@ -151,6 +158,10 @@ export class ProjectIndex {
     for (const note of old.dynamicRoutes) {
       const i = this.dynamicRoutes.indexOf(note);
       if (i !== -1) this.dynamicRoutes.splice(i, 1);
+    }
+    for (const table of old.routeTables) {
+      const i = this.routeTables.indexOf(table);
+      if (i !== -1) this.routeTables.splice(i, 1);
     }
     for (const guard of old.routerGuards) {
       const i = this.routerGuards.indexOf(guard);

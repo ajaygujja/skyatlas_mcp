@@ -16,10 +16,13 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { ProjectIndex } from '../index/project-index.js';
-import type { DynamicRouteNote, RouteInfo, RouterKind } from '../model/flutter.js';
+import type { DynamicRouteNote, NamedRouteTable, RouteInfo, RouterKind } from '../model/flutter.js';
+import { resolveClass } from '../index/resolve.js';
 import { capLines, errorResult, textResult } from './format.js';
 
 const MAX_LINES = 250;
+/** Mount spreads can nest tables; bound the splice recursion alongside a cycle guard. */
+const MAX_TABLE_DEPTH = 8;
 
 export function registerGetRouteGraph(
   server: McpServer,
@@ -61,7 +64,11 @@ function formatRouteGraph(index: ProjectIndex, router: RouterKind | undefined): 
   const lines: string[] = [];
   const body: string[] = [];
 
-  const go = index.routes.filter((r) => r.router === 'go_router');
+  // Routes mounted via `...Owner.routes()` are spliced in from their static
+  // tables here, where cross-file resolution is available; unresolved mounts
+  // and table-internal dynamics surface in the dynamic section below.
+  const spreadDynamics: DynamicRouteNote[] = [];
+  const go = spliceRouteTables(index, index.routes.filter((r) => r.router === 'go_router'), spreadDynamics);
   const goGuards = index.routerGuards.filter((g) => g.router === 'go_router');
   if (wanted('go_router') && (go.length > 0 || goGuards.length > 0)) {
     body.push('## go_router');
@@ -77,7 +84,7 @@ function formatRouteGraph(index: ProjectIndex, router: RouterKind | undefined): 
     renderAutoRoute(auto, index, consts, body);
   }
 
-  const dynamics = index.dynamicRoutes.filter((d) => wanted(d.router));
+  const dynamics = [...index.dynamicRoutes, ...spreadDynamics].filter((d) => wanted(d.router));
   if (dynamics.length > 0) {
     body.push(
       `## Dynamic routes — ${String(dynamics.length)} table(s) the syntax layer can't enumerate`,
@@ -103,6 +110,80 @@ function formatRouteGraph(index: ProjectIndex, router: RouterKind | undefined): 
       'an unresolved one is shown verbatim and labelled.',
   );
   return lines;
+}
+
+/**
+ * Replaces each `...Owner.method()` mount node with the routes of the static
+ * table it names. The owner is resolved through the shared symbol resolver
+ * (deterministic across duplicate names) to its declaring file, then matched to
+ * a table by method. A table may mount further tables, so resolution recurses
+ * under a depth cap and a per-path cycle guard keyed by table identity. An owner
+ * whose table is not indexed — or a cycle/overflow — degrades to an honest
+ * dynamic note rather than a fabricated route.
+ */
+function spliceRouteTables(
+  index: ProjectIndex,
+  routes: RouteInfo[],
+  dynamicsOut: DynamicRouteNote[],
+): RouteInfo[] {
+  const tables = new Map<string, NamedRouteTable>();
+  for (const t of index.routeTables) tables.set(tableKey(t.file, t.owner, t.method), t);
+  return expandMounts(routes, tables, index, dynamicsOut, 0, new Set());
+}
+
+function expandMounts(
+  routes: RouteInfo[],
+  tables: Map<string, NamedRouteTable>,
+  index: ProjectIndex,
+  dynamicsOut: DynamicRouteNote[],
+  depth: number,
+  seen: Set<string>,
+): RouteInfo[] {
+  const out: RouteInfo[] = [];
+  for (const route of routes) {
+    if (route.spread) {
+      const table = resolveTable(index, tables, route.spread);
+      const key = table && tableKey(table.file, table.owner, table.method);
+      if (!table || !key || depth >= MAX_TABLE_DEPTH || seen.has(key)) {
+        dynamicsOut.push(unresolvedMount(route));
+        continue;
+      }
+      dynamicsOut.push(...table.dynamic);
+      const nested = new Set(seen).add(key);
+      out.push(...expandMounts(table.routes, tables, index, dynamicsOut, depth + 1, nested));
+      continue;
+    }
+    out.push({
+      ...route,
+      children: expandMounts(route.children, tables, index, dynamicsOut, depth, seen),
+    });
+  }
+  return out;
+}
+
+/** The static table a mount names, or undefined when none is indexed for it. */
+function resolveTable(
+  index: ProjectIndex,
+  tables: Map<string, NamedRouteTable>,
+  spread: { owner: string; method: string },
+): NamedRouteTable | undefined {
+  const owner = resolveClass(index, spread.owner);
+  if (!owner) return undefined;
+  return tables.get(tableKey(owner.file, spread.owner, spread.method));
+}
+
+function tableKey(file: string, owner: string, method: string): string {
+  return `${file}::${owner}.${method}`;
+}
+
+function unresolvedMount(route: RouteInfo): DynamicRouteNote {
+  const m = route.spread;
+  return {
+    router: 'go_router',
+    file: route.file,
+    line: route.line,
+    reason: `routes mounted from \`...${m?.owner ?? '?'}.${m?.method ?? '?'}()\` — no static table indexed`,
+  };
 }
 
 /**

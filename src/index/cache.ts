@@ -18,7 +18,8 @@ import { logger } from '../shared/logger.js';
 // v5: FileEntry.routes + dynamicRoutes added (Phase 3d).
 // v6: FileEntry.stringConsts added; RouteInfo gains pathExpr/isShell (path-const resolution).
 // v7: FileEntry.routerGuards added; RouteInfo gains shellWidget/redirectTo (route-graph polish).
-const CACHE_VERSION = 7;
+// v8: FileEntry.routeTables added; RouteInfo gains spread (static route-table mounts).
+const CACHE_VERSION = 8;
 
 interface CacheFile {
   version: number;
