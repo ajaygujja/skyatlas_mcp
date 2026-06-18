@@ -140,7 +140,12 @@ function indexFileText(
   const widgets = extractWidgets(tree, relPath);
   const { blocs, edges: blocEdges } = extractBlocs(tree, relPath);
   const { providers, edges: providerEdges } = extractProviders(tree, relPath);
-  const { routes, dynamic: dynamicRoutes, routerGuards, routeTables } = extractRoutes(tree, relPath);
+  const {
+    routes,
+    dynamic: dynamicRoutes,
+    routerGuards,
+    routeTables,
+  } = extractRoutes(tree, relPath);
   const stringConsts = extractStringConsts(tree);
   tree.delete(); // wasm-side memory is manual; the Symbol model owns the data now
   const entry: FileEntry = {

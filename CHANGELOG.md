@@ -6,6 +6,29 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-06-19
+
+### Added
+
+- `find_symbol`: `match` modes (`exact`, `prefix`, `suffix`, `substring`, `regex`) and a `countOnly`
+  option. An invalid regex returns a hint instead of throwing.
+- `find_state_wiring`: a `depth` parameter that follows the dependency chain
+  bloc → usecase → repository → datasource, with a role label for each hop.
+- `get_widget_tree`: a `follow` option that expands a leaf widget and crosses a `StatefulWidget`
+  into its `State` in a single call.
+
+### Fixed
+
+- `get_route_graph`: static route tables mounted by a spread (`...Owner.routes()`) are now
+  enumerated instead of reported as unknown.
+- `get_widget_tree`: spread-of-map children (`...items.map((e) => W())`) are now surfaced as a
+  representative `dynamic (mapped)` child.
+- `get_widget_tree`: a two-type-argument generic at a list position (`[BlocBuilder<A, B>(...)]`) now
+  recovers its full builder subtree; the best-effort warning is dropped once the arguments are fully
+  reconstructed.
+- `find_state_wiring`: a dependency whose name is declared in more than one file now resolves to the
+  declaration the caller imports.
+
 ## [0.1.0]
 
 Initial release.
@@ -21,5 +44,6 @@ Initial release.
   under `.skyatlas/` in the indexed repo.
 - `doctor` parse-coverage command (human and `--json` output) and a `benchmark` script.
 
-[Unreleased]: https://github.com/ajaygujja/skyatlas_mcp/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/ajaygujja/skyatlas_mcp/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/ajaygujja/skyatlas_mcp/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/ajaygujja/skyatlas_mcp/releases/tag/v0.1.0

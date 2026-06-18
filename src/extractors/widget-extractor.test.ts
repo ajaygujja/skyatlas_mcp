@@ -149,7 +149,9 @@ describe('extractWidgets', () => {
     const { tree } = await parseFile(resolve(FIXTURES, '../basic/widget_tree_repro.dart'));
     const widgets = extractWidgets(tree, 'fixtures/basic/widget_tree_repro.dart');
     const column = widgets.find((w) => w.name === 'GenericInListField')?.buildTree?.[0];
-    const blocBuilder = (column?.namedSlots['children'] ?? []).find((c) => c.widget === 'BlocBuilder');
+    const blocBuilder = (column?.namedSlots['children'] ?? []).find(
+      (c) => c.widget === 'BlocBuilder',
+    );
     expect(blocBuilder?.typeArgs).toEqual(['SomeBloc', 'SomeState']);
     // The arg list spilled past the closing `>` is now captured, so the builder
     // subtree survives and the node is no longer flagged best-effort.

@@ -68,7 +68,11 @@ function formatRouteGraph(index: ProjectIndex, router: RouterKind | undefined): 
   // tables here, where cross-file resolution is available; unresolved mounts
   // and table-internal dynamics surface in the dynamic section below.
   const spreadDynamics: DynamicRouteNote[] = [];
-  const go = spliceRouteTables(index, index.routes.filter((r) => r.router === 'go_router'), spreadDynamics);
+  const go = spliceRouteTables(
+    index,
+    index.routes.filter((r) => r.router === 'go_router'),
+    spreadDynamics,
+  );
   const goGuards = index.routerGuards.filter((g) => g.router === 'go_router');
   if (wanted('go_router') && (go.length > 0 || goGuards.length > 0)) {
     body.push('## go_router');

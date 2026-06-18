@@ -73,7 +73,9 @@ export function registerGetWidgetTree(
 
       const info = matches[0];
       if (!info) return errorResult('Widget resolution failed.');
-      return textResult(formatWidget(info, index, depth ?? DEFAULT_DEPTH, follow ?? false).join('\n'));
+      return textResult(
+        formatWidget(info, index, depth ?? DEFAULT_DEPTH, follow ?? false).join('\n'),
+      );
     },
   );
 }
@@ -194,7 +196,14 @@ function renderNode(
     ? { ...ctx, visited: new Set(ctx.visited).add(followed.from.symbolId) }
     : ctx;
   for (const [label, child] of children) {
-    renderNode(child, label === '(positional)' ? undefined : label, depth + 1, maxDepth, out, childCtx);
+    renderNode(
+      child,
+      label === '(positional)' ? undefined : label,
+      depth + 1,
+      maxDepth,
+      out,
+      childCtx,
+    );
   }
 }
 

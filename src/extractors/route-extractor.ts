@@ -146,7 +146,13 @@ function parseGoRouteList(
       if (mount) {
         // A `...Owner.method()` spread mounts a static table resolved at graph
         // time; carry the target so get_route_graph can splice its routes in.
-        out.push({ router: 'go_router', file: relPath, line: line(child), children: [], spread: mount });
+        out.push({
+          router: 'go_router',
+          file: relPath,
+          line: line(child),
+          children: [],
+          spread: mount,
+        });
       } else {
         dynamic.push({
           router: 'go_router',
