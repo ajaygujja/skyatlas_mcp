@@ -17,6 +17,7 @@ import type { ProjectIndex } from '../index/project-index.js';
 import {
   computeWiring,
   type Loc,
+  type RepoDep,
   type SourceGroup,
   type TargetGroup,
   type WireRef,
@@ -26,6 +27,7 @@ import {
 import { capLines, errorResult, textResult } from './format.js';
 
 const MAX_LINES = 250;
+const MAX_DEPTH = 8;
 
 export function registerFindStateWiring(
   server: McpServer,
@@ -49,9 +51,19 @@ export function registerFindStateWiring(
           .string()
           .optional()
           .describe('Riverpod provider name, e.g. "settingsProvider".'),
+        depth: z
+          .number()
+          .int()
+          .min(1)
+          .max(MAX_DEPTH)
+          .optional()
+          .describe(
+            'Dependency hops to follow from a bloc (default 1). Raise to cross a ' +
+              'clean-arch chain bloc → usecase → repository → datasource.',
+          ),
       },
     },
-    async ({ screen, bloc, provider }) => {
+    async ({ screen, bloc, provider, depth }) => {
       let index: ProjectIndex;
       try {
         index = await getIndex();
@@ -67,7 +79,7 @@ export function registerFindStateWiring(
         );
       }
 
-      const result = computeWiring(index, filter);
+      const result = computeWiring(index, filter, depth);
       return textResult(formatWiring(result).join('\n'));
     },
   );
@@ -134,9 +146,7 @@ function renderTarget(group: TargetGroup, out: string[]): void {
   out.push(`→ ${targetHeader(group)}`);
   for (const ref of group.via) out.push(`    ${wireRefLine(ref)}`);
   for (const repo of group.repos) {
-    out.push(
-      `    repo ${repo.member}: ${repo.typeName} — ${loc(repo.decl)} (via ${loc(repo.via)}, syntactic)`,
-    );
+    out.push(`${'    '.repeat(repo.depth)}${depCore(repo)} (via ${loc(repo.via)}, syntactic)`);
   }
   out.push('');
 }
@@ -186,7 +196,9 @@ function formatBloc(r: WiringResult): string[] {
   } else {
     lines.push('Repositories (constructor/field deps, syntactic):');
     for (const repo of r.repos) {
-      lines.push(`- ${repo.member}: ${repo.typeName} — ${loc(repo.decl)} (via ${loc(repo.via)})`);
+      const indent = '  '.repeat(repo.depth - 1);
+      const bullet = repo.depth === 1 ? '- ' : '↳ ';
+      lines.push(`${indent}${bullet}${depCore(repo)} (via ${loc(repo.via)})`);
     }
   }
 
@@ -244,6 +256,13 @@ function renderSource(source: SourceGroup, out: string[]): void {
 
 function wireRefLine(ref: WireRef): string {
   return `${ref.kind} · ${loc(ref.callSite)} (${ref.confidence})`;
+}
+
+/** `<role> <member>: <Type>[ → <Impl> loc] — <decl>`; the impl note appears when an
+ * interface dependency was followed into its concrete class to continue the chain. */
+function depCore(repo: RepoDep): string {
+  const impl = repo.impl ? ` → ${repo.impl.typeName} ${loc(repo.impl.decl)}` : '';
+  return `${repo.role} ${repo.member}: ${repo.typeName}${impl} — ${loc(repo.decl)}`;
 }
 
 /** §6 rule 5: explain absence and point at the other filter via the detected stack. */

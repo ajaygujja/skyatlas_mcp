@@ -94,7 +94,7 @@ describe('find_state_wiring (formatted response)', () => {
     expect(text).toContain('createsBloc · counter_screen.dart:13 (syntactic)');
     expect(text).toContain('Repositories (constructor/field deps, syntactic):');
     expect(text).toContain(
-      '- _repo: CounterRepository — repositories.dart:3 (via counter_cubit.dart:8)',
+      '- repo _repo: CounterRepository — repositories.dart:3 (via counter_cubit.dart:8)',
     );
   });
 
@@ -134,6 +134,25 @@ describe('find_state_wiring (formatted response)', () => {
     const text = await callWiring({ bloc: 'BlockBodyBloc' });
     expect(text).toContain('← TypedBlocScreen');
     expect(text).toContain('createsBloc');
+  });
+
+  it('labels a use-case dependency as usecase, not repo, at the default depth', async () => {
+    const text = await callWiring({ bloc: 'ConstructionFormsBloc' });
+    expect(text).toContain(
+      '- usecase _getCounts: GetFormsCountUsecase — usecases.dart:5 (via forms_bloc.dart:14)',
+    );
+    // A single hop stops at the use-case — the repo/datasource stay out of view.
+    expect(text).not.toContain('FormRepository');
+    expect(text).not.toContain('FormDatasource');
+  });
+
+  it('follows a clean-arch chain bloc → usecase → repository → datasource with depth', async () => {
+    const text = await callWiring({ bloc: 'ConstructionFormsBloc', depth: 4 });
+    expect(text).toContain('- usecase _getCounts: GetFormsCountUsecase — usecases.dart:5');
+    // The repository is held as an interface, followed into its concrete implementor.
+    expect(text).toContain('repo repository: FormRepository → FormRepositoryImpl');
+    // The datasource the interface hid, reached only via the implementor.
+    expect(text).toContain('datasource _datasource: FormDatasource — form_datasource.dart:2');
   });
 
   it('requires exactly one filter', async () => {

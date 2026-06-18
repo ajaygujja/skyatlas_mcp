@@ -18,8 +18,12 @@
  */
 import type { ProjectIndex } from './project-index.js';
 import type { EdgeConfidence, EdgeKind, RouteInfo } from '../model/flutter.js';
+import type { Symbol } from '../model/symbol.js';
 import { detectStack } from './stack-detect.js';
 import { CONTAINER_KINDS, resolveClass } from './resolve.js';
+
+/** Dependency hops followed from a bloc unless the caller asks for more. */
+const DEFAULT_DEPTH = 1;
 
 /** Edge kinds that connect a screen to its state (the outgoing wiring set). */
 const WIRING_KINDS = new Set<EdgeKind>(['createsBloc', 'readsBloc', 'watchesProvider']);
@@ -41,17 +45,26 @@ export interface ResolvedTarget {
   decl?: Loc;
 }
 
+/** Clean-architecture role of a dependency, inferred from its type-name suffix. */
+export type DepRole = 'usecase' | 'repo' | 'datasource' | 'dependency';
+
 /** A constructor-param/field dependency of a bloc whose type name resolves to a class. */
 export interface RepoDep {
   /** Param or field name holding the dependency. */
   member: string;
   /** Type name as written (generics/nullable stripped to the base identifier). */
   typeName: string;
+  /** Role read off the type-name suffix (syntactic, never type resolution). */
+  role: DepRole;
   symbolId: string;
   /** Declaration site of the resolved dependency class. */
   decl: Loc;
-  /** Where the dependency is declared on the bloc (field or constructor line). */
+  /** Where the dependency is declared on the owner (field or constructor line). */
   via: Loc;
+  /** Hop distance from the queried bloc — 1 is a direct dependency. */
+  depth: number;
+  /** When `typeName` is an interface, the concrete class followed to continue the chain. */
+  impl?: { typeName: string; decl: Loc };
 }
 
 /** One read/create/watch call site. */
@@ -119,7 +132,11 @@ export interface WiringResult {
 }
 
 /** Resolve a wiring query against the index. Pure read over edges + symbols. */
-export function computeWiring(index: ProjectIndex, filter: WiringFilter): WiringResult {
+export function computeWiring(
+  index: ProjectIndex,
+  filter: WiringFilter,
+  depth: number = DEFAULT_DEPTH,
+): WiringResult {
   const stateLabels = detectStack(index)
     .filter((h) => h.category === 'state')
     .map((h) => h.label);
@@ -135,9 +152,9 @@ export function computeWiring(index: ProjectIndex, filter: WiringFilter): Wiring
 
   switch (filter.kind) {
     case 'screen':
-      return wireScreen(index, filter.name, base);
+      return wireScreen(index, filter.name, base, depth);
     case 'bloc':
-      return wireBloc(index, filter.name, base);
+      return wireBloc(index, filter.name, base, depth);
     case 'provider':
       return wireProvider(index, filter.name, base);
   }
@@ -147,14 +164,14 @@ type Base = Omit<WiringResult, 'found' | 'subject'>;
 
 // ── screen ────────────────────────────────────────────────────────────────
 
-function wireScreen(index: ProjectIndex, name: string, base: Base): WiringResult {
+function wireScreen(index: ProjectIndex, name: string, base: Base, depth: number): WiringResult {
   const ids = screenSymbolIds(index, name);
   if (ids.length === 0) return { ...base, found: false };
 
   const subject = screenSubject(index, name, ids);
   const idSet = new Set(ids);
   const edges = index.edges.filter((e) => idSet.has(e.from) && WIRING_KINDS.has(e.kind));
-  const targets = groupTargets(index, edges);
+  const targets = groupTargets(index, edges, depth);
   const routes = routesForScreen(index, name);
   return { ...base, found: true, subject, targets, routes };
 }
@@ -213,7 +230,7 @@ function routesForScreen(index: ProjectIndex, name: string): RouteRef[] {
 
 // ── bloc ──────────────────────────────────────────────────────────────────
 
-function wireBloc(index: ProjectIndex, name: string, base: Base): WiringResult {
+function wireBloc(index: ProjectIndex, name: string, base: Base, depth: number): WiringResult {
   const classSym = resolveClass(index, name);
   const info = classSym ? index.blocs.get(classSym.id) : undefined;
   if (!classSym || !info) {
@@ -238,7 +255,7 @@ function wireBloc(index: ProjectIndex, name: string, base: Base): WiringResult {
     (e) => e.to === name && (e.kind === 'createsBloc' || e.kind === 'readsBloc'),
   );
   const sources = groupSources(index, incoming);
-  const repos = repoDepsOf(index, classSym.id);
+  const repos = repoDepsOf(index, classSym.id, depth);
   return { ...base, found: true, subject, sources, repos };
 }
 
@@ -270,7 +287,7 @@ interface RawEdge {
 }
 
 /** Groups a screen's outgoing edges by target name; attaches each bloc's repos. */
-function groupTargets(index: ProjectIndex, edges: RawEdge[]): TargetGroup[] {
+function groupTargets(index: ProjectIndex, edges: RawEdge[], depth: number): TargetGroup[] {
   const byTarget = new Map<string, TargetGroup>();
   for (const e of edges) {
     let group = byTarget.get(e.to);
@@ -278,7 +295,7 @@ function groupTargets(index: ProjectIndex, edges: RawEdge[]): TargetGroup[] {
       const target = resolveTarget(index, e.to, e.kind);
       const repos =
         target.symbolId && (target.kind === 'bloc' || target.kind === 'cubit')
-          ? repoDepsOf(index, target.symbolId)
+          ? repoDepsOf(index, target.symbolId, depth)
           : [];
       group = { target, via: [], repos };
       byTarget.set(e.to, group);
@@ -353,43 +370,100 @@ function resolveProvider(index: ProjectIndex, name: string): ResolvedTarget | un
 }
 
 /**
- * The bloc's constructor params + field declarations whose TYPE NAME resolves to
- * a class in the index (§7.3 last row — a syntactic repo edge). Param/field whose
- * type does not resolve (primitives, SDK types, unindexed packages) is dropped.
+ * The dependency classes reachable from a bloc through its constructor params and
+ * field declarations whose TYPE NAME resolves to a class in the index (§7.3 last
+ * row — a syntactic edge). `maxDepth` bounds the walk: depth 1 is the bloc's own
+ * dependencies, deeper levels follow each dependency's dependencies so a
+ * clean-architecture chain bloc → usecase → repository → datasource resolves end
+ * to end. A type that does not resolve to a container class (primitives, SDK
+ * types, unindexed packages) is dropped.
+ *
+ * An interface dependency is followed into its concrete implementor, since the
+ * datasource an interface declares lives on the implementing class, not the
+ * interface. A per-class cycle guard stops mutually referencing classes looping.
  */
-function repoDepsOf(index: ProjectIndex, blocSymbolId: string): RepoDep[] {
-  const sym = index.symbolsById.get(blocSymbolId);
-  if (!sym) return [];
+function repoDepsOf(index: ProjectIndex, blocSymbolId: string, maxDepth: number): RepoDep[] {
   const out: RepoDep[] = [];
-  const seen = new Set<string>();
+  const seenClasses = new Set<string>([blocSymbolId]);
 
-  const consider = (member: string, typeText: string, via: Loc): void => {
-    if (seen.has(member)) return;
-    const typeName = baseTypeName(typeText);
-    const cls = resolveClass(index, typeName);
-    if (!cls || !CONTAINER_KINDS.has(cls.kind) || cls.id === blocSymbolId) return;
-    seen.add(member);
-    out.push({
-      member,
-      typeName,
-      symbolId: cls.id,
-      decl: { file: cls.file, line: cls.range.startLine },
-      via,
-    });
-  };
+  const walk = (symbolId: string, depth: number): void => {
+    if (depth > maxDepth) return;
+    const sym = index.symbolsById.get(symbolId);
+    if (!sym) return;
+    const seenMembers = new Set<string>();
 
-  for (const child of sym.children) {
-    if (child.kind === 'field' && child.returnType) {
-      consider(child.name, child.returnType, { file: child.file, line: child.range.startLine });
-    } else if (child.kind === 'constructor' && child.parameters) {
-      for (const param of child.parameters) {
-        if (param.type) {
-          consider(param.name, param.type, { file: child.file, line: child.range.startLine });
+    const consider = (member: string, typeText: string, via: Loc): void => {
+      if (seenMembers.has(member)) return;
+      const typeName = baseTypeName(typeText);
+      const cls = resolveClass(index, typeName);
+      if (!cls || !CONTAINER_KINDS.has(cls.kind) || seenClasses.has(cls.id)) return;
+      seenMembers.add(member);
+      seenClasses.add(cls.id);
+
+      const impl =
+        depth < maxDepth ? implementorOf(index, cls.name, cls.id, seenClasses) : undefined;
+      const dep: RepoDep = {
+        member,
+        typeName,
+        role: depRole(typeName),
+        symbolId: cls.id,
+        decl: { file: cls.file, line: cls.range.startLine },
+        via,
+        depth,
+      };
+      if (impl) {
+        dep.impl = { typeName: impl.name, decl: { file: impl.file, line: impl.range.startLine } };
+        seenClasses.add(impl.id);
+      }
+      out.push(dep);
+      walk((impl ?? cls).id, depth + 1);
+    };
+
+    for (const child of sym.children) {
+      if (child.kind === 'field' && child.returnType) {
+        consider(child.name, child.returnType, { file: child.file, line: child.range.startLine });
+      } else if (child.kind === 'constructor' && child.parameters) {
+        for (const param of child.parameters) {
+          if (param.type) {
+            consider(param.name, param.type, { file: child.file, line: child.range.startLine });
+          }
         }
       }
     }
-  }
+  };
+
+  walk(blocSymbolId, 1);
   return out;
+}
+
+/** Clean-architecture role read off the type-name suffix — syntactic, never a type
+ * judgement (Working Rule 8); an unrecognised suffix stays a plain dependency. */
+function depRole(typeName: string): DepRole {
+  const n = typeName.toLowerCase();
+  if (n.endsWith('usecase')) return 'usecase';
+  if (n.endsWith('repository') || n.endsWith('repo')) return 'repo';
+  if (n.endsWith('datasource') || n.endsWith('datastore')) return 'datasource';
+  return 'dependency';
+}
+
+/**
+ * The concrete container class declaring `implements <name>` — the implementor
+ * behind an interface. Picked deterministically (lowest symbol id) when several
+ * implement it; an already-visited class is skipped so the cycle guard holds.
+ */
+function implementorOf(
+  index: ProjectIndex,
+  name: string,
+  interfaceId: string,
+  seen: Set<string>,
+): Symbol | undefined {
+  let pick: Symbol | undefined;
+  for (const sym of index.symbolsById.values()) {
+    if (sym.id === interfaceId || seen.has(sym.id) || !CONTAINER_KINDS.has(sym.kind)) continue;
+    if (!sym.implementsTypes?.some((t) => t.name === name)) continue;
+    if (!pick || sym.id.localeCompare(pick.id) < 0) pick = sym;
+  }
+  return pick;
 }
 
 /** `Future<List<int>>` → `Future`; `UserRepository?` → `UserRepository`. */
