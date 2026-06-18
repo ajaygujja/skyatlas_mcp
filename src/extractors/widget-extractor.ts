@@ -8,13 +8,14 @@
  * Node names below were observed via scripts/dump-tree.ts against
  * tree-sitter-dart @ a9bdfa3 (vendor/GRAMMAR_VERSION), per Working Rule 2.
  *
- * KNOWN GRAMMAR WEAKNESS (§2): a generic constructor with >=2 comma-separated
- * type args at value position — `BlocBuilder<UserBloc, UserState>(...)` —
- * mis-parses. Instead of one invocation node the grammar yields a
- * `relational_expression` (reading `<`/`>` as comparison operators) and spills
- * the real argument list into a sibling `record_literal`. A single type arg
- * (`FutureBuilder<int>(...)`) parses cleanly. We recover name + type args from
- * the mis-parse and best-effort the slots, flagged `recoveredFromMisparse`.
+ * KNOWN GRAMMAR WEAKNESS (§2): a generic constructor at **value position inside
+ * a collection literal** mis-parses — `[BlocProvider<X>(...)]` — even with a
+ * single type arg. The `<`/`>` are read as comparison operators: the grammar
+ * yields a nested `relational_expression` pair and spills the real argument list
+ * into a sibling `record_literal`. (Standalone statement-level use parses cleanly.)
+ * Two type args at value position — `BlocBuilder<A, B>(...)` — also mis-parse in
+ * a flat `relational_expression`. We recover both shapes, flagged
+ * `recoveredFromMisparse`.
  */
 import type { Node, Tree } from 'web-tree-sitter';
 import type { WidgetFlavor, WidgetInfo, WidgetNode } from '../model/flutter.js';
@@ -368,11 +369,15 @@ function parsePlainInvocation(
 }
 
 /**
- * Recovers a mis-parsed generic constructor (see file header). kids[start] is a
- * `named_argument` or `argument` whose value begins a
- * `relational_expression` (`Widget < TypeArg0`). Type args continue across
- * sibling nodes until a `>`; the real argument list is a `record_literal`
- * somewhere in the consumed span. Best-effort, flagged on the node.
+ * Recovers a mis-parsed generic constructor (see file header).
+ *
+ * Two shapes are handled:
+ * - Flat: kids[start] is a `relational_expression` (`Widget < TypeArg0`).
+ *   Type args may continue across sibling nodes; a `record_literal` holds args.
+ * - Nested: kids[start] is `relational_expression((Widget < TypeArg) > record_literal)`.
+ *   Produced when the constructor appears inside a collection literal.
+ *
+ * Both are recovered best-effort and flagged `recoveredFromMisparse`.
  */
 function recoverGeneric(
   kids: readonly (Node | null)[],
@@ -390,6 +395,32 @@ function recoverGeneric(
 
   const headId = rel0.namedChildren[0];
   if (!headId) return { next: start + 1 };
+
+  // Outer collection-position pattern: outer_rel(inner_rel '>' record_literal).
+  // inner_rel = (Widget '<' TypeArg).  When a generic constructor appears inside
+  // a list_literal the grammar wraps the mis-parse in a second relational_expression.
+  if (headId.type === 'relational_expression' && isMisparsedGeneric(headId)) {
+    const innerRel = headId;
+    const widgetId = innerRel.namedChildren[0];
+    if (!widgetId) return { next: start + 1 };
+    const outerTypeArgs: string[] = [];
+    let seenOp = false;
+    for (const c of innerRel.namedChildren) {
+      if (c === widgetId) continue;
+      if (c.type === 'relational_operator') { seenOp = true; continue; }
+      if (seenOp && (c.type === 'identifier' || c.type === 'type_identifier')) outerTypeArgs.push(c.text);
+    }
+    const outerRecord = rel0.namedChildren.find((c) => c.type === 'record_literal');
+    const outerNode: WidgetNode = {
+      widget: widgetId.text,
+      line: widgetId.startPosition.row + 1,
+      namedSlots: outerRecord ? slotsFromRecordLiteral(outerRecord, ctx) : {},
+      recoveredFromMisparse: true,
+    };
+    if (outerTypeArgs.length > 0) outerNode.typeArgs = outerTypeArgs;
+    if (inBuilder) outerNode.isBuilderCallback = true;
+    return { node: outerNode, next: start + 1 };
+  }
 
   const typeArgs: string[] = [];
   let recordLit: Node | undefined;
@@ -527,7 +558,11 @@ function slotsFromRecordLiteral(rec: Node, ctx: ScanCtx): Record<string, WidgetN
       if (v) segment.push(v);
       i++;
     }
-    if (label) {
+    if (label && !isEventHandlerSlot(label) && label !== 'create') {
+      // `create:` factory closures return non-widget objects (blocs, repos);
+      // scanning their bodies would surface constructor identifiers as phantom
+      // widget slots.  Event handler slots (`on[A-Z]`) are excluded for the
+      // same reason — their callbacks fire at runtime, not at layout time.
       const nodes = scanSequence(segment, false, ctx);
       if (nodes.length > 0) addSlot(slots, label, nodes);
     }
@@ -584,7 +619,13 @@ function closureOf(argSelector: Node): Node | undefined {
 function isMisparsedGeneric(n: Node): boolean {
   const first = n.namedChildren[0];
   const op = n.namedChildren.find((c) => c.type === 'relational_operator');
-  return first?.type === 'identifier' && isConstructorName(first.text) && op?.text === '<';
+  // Flat pattern: Widget < TypeArg  (op is '<')
+  if (first?.type === 'identifier' && isConstructorName(first.text) && op?.text === '<') return true;
+  // Nested pattern: (Widget < TypeArg) > record_literal  (op is '>').
+  // The grammar wraps the flat mis-parse in a second relational_expression when
+  // the constructor sits inside a collection literal.
+  if (first?.type === 'relational_expression' && isMisparsedGeneric(first) && op?.text === '>') return true;
+  return false;
 }
 
 /** Constructor names are PascalCase by Dart convention; private widgets may lead with `_`. */
