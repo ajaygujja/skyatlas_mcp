@@ -47,6 +47,18 @@ describe('extractWidgets', () => {
     expect(profile.find((w) => w.name === 'CounterBadge')?.flavor).toBe('hook');
   });
 
+  // Regression guard: expression-bodied build() has no return_statement, so the
+  // returned widget must be read straight off the function_body (collectBuildRoots).
+  it('extracts the build tree from an arrow-bodied build()', async () => {
+    const arrow = await extractFixture('arrow_body.dart');
+    const constArrow = arrow.find((w) => w.name === 'ConstArrowScreen')?.buildTree?.[0];
+    expect(constArrow?.widget).toBe('MaterialApp');
+    expect((constArrow?.namedSlots['home'] ?? []).map((c) => c.widget)).toEqual(['HomeBody']);
+
+    const plainArrow = arrow.find((w) => w.name === 'PlainArrowScreen')?.buildTree?.[0];
+    expect(plainArrow?.widget).toBe('Scaffold');
+  });
+
   it('does not treat a plain non-widget class as a widget', async () => {
     const profile = await extractFixture('profile_widgets.dart');
     expect(profile.find((w) => w.name === 'ProfileRepository')).toBeUndefined();

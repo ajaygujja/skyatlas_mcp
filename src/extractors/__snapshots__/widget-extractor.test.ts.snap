@@ -1,5 +1,71 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`extractWidgets > matches snapshot: arrow_body.dart 1`] = `
+[
+  {
+    "buildTree": [
+      {
+        "line": 12,
+        "namedSlots": {
+          "home": [
+            {
+              "line": 12,
+              "namedSlots": {},
+              "widget": "HomeBody",
+            },
+          ],
+        },
+        "widget": "MaterialApp",
+      },
+    ],
+    "file": "fixtures/widgets/arrow_body.dart",
+    "flavor": "stateless",
+    "line": 8,
+    "name": "ConstArrowScreen",
+    "superclass": "StatelessWidget",
+    "symbolId": "fixtures/widgets/arrow_body.dart#ConstArrowScreen",
+  },
+  {
+    "buildTree": [
+      {
+        "line": 20,
+        "namedSlots": {
+          "body": [
+            {
+              "line": 20,
+              "namedSlots": {},
+              "widget": "HomeBody",
+            },
+          ],
+        },
+        "widget": "Scaffold",
+      },
+    ],
+    "file": "fixtures/widgets/arrow_body.dart",
+    "flavor": "stateless",
+    "line": 16,
+    "name": "PlainArrowScreen",
+    "superclass": "StatelessWidget",
+    "symbolId": "fixtures/widgets/arrow_body.dart#PlainArrowScreen",
+  },
+  {
+    "buildTree": [
+      {
+        "line": 27,
+        "namedSlots": {},
+        "widget": "SizedBox",
+      },
+    ],
+    "file": "fixtures/widgets/arrow_body.dart",
+    "flavor": "stateless",
+    "line": 23,
+    "name": "HomeBody",
+    "superclass": "StatelessWidget",
+    "symbolId": "fixtures/widgets/arrow_body.dart#HomeBody",
+  },
+]
+`;
+
 exports[`extractWidgets > matches snapshot: home_screen.dart 1`] = `
 [
   {

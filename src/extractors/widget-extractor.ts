@@ -132,6 +132,8 @@ function findBuildBody(classBody: Node): Node | undefined {
  * into per-branch roots. Roots are marked branch: true when ≥2 alternatives.
  *
  * Observed CST shapes (Working Rule 2, tree-sitter-dart @ a9bdfa3):
+ *   - Arrow body: `build() => Foo(...)` has NO return_statement — the returned
+ *       expression is a direct child of function_body. Scan those children.
  *   - Multiple returns: return_statement siblings in block / nested in if_statement.
  *   - Ternary: return_statement → conditional_expression
  *       namedChildren: [cond, then_parts…, else_parts…]
@@ -142,6 +144,12 @@ function findBuildBody(classBody: Node): Node | undefined {
  */
 function collectBuildRoots(buildBody: Node, ctx: ScanCtx): WidgetNode[] {
   const returnNodes = findTopLevelReturns(buildBody);
+  // Expression-bodied build (`=> Foo(...)`): no return_statement to walk, so the
+  // returned widget is a direct child of the function_body. scanSequence handles
+  // the const_object_expression / identifier+selector shapes it produces.
+  if (returnNodes.length === 0) {
+    return scanSequence(buildBody.namedChildren, false, ctx);
+  }
   const roots: WidgetNode[] = [];
 
   for (const ret of returnNodes) {
