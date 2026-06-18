@@ -129,6 +129,21 @@ describe('extractWidgets', () => {
     expect(child?.isBuilderCallback).toBeUndefined();
   });
 
+  it('unrolls a spread-of-map child as dynamic (mapped), keeps the plain spread', async () => {
+    const { tree } = await parseFile(resolve(FIXTURES, '../basic/widget_tree_repro.dart'));
+    const widgets = extractWidgets(tree, 'fixtures/basic/widget_tree_repro.dart');
+    const column = widgets.find((w) => w.name === 'SpreadMappedChildrenField')?.buildTree?.[0];
+    const children = column?.namedSlots['children'] ?? [];
+    // `...items.map((i) => Expanded(...))`: the closure surfaces one representative
+    // element marked dynamic (mapped); the plain `...footerWidgets` stays a spread
+    // marker. Neither is a builder slot.
+    expect(children.map((c) => c.widget)).toEqual(['Header', 'Expanded', '...footerWidgets']);
+    const mapped = children.find((c) => c.widget === 'Expanded');
+    expect(mapped?.dynamic).toBe('mapped');
+    expect(mapped?.isBuilderCallback).toBeUndefined();
+    expect(children.find((c) => c.widget === '...footerWidgets')?.dynamic).toBe('spread');
+  });
+
   it('marks a collection-`if` child conditional and a spread as dynamic', async () => {
     const { tree } = await parseFile(resolve(FIXTURES, '../stress/widgets_hard.dart'));
     const widgets = extractWidgets(tree, 'fixtures/stress/widgets_hard.dart');

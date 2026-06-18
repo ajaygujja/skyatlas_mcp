@@ -274,16 +274,31 @@ function scanSequence(
       }
       i++;
     } else if (child.type === 'spread_element') {
-      // Spread (`...widgets`): an opaque list reference whose element count and
-      // shape are runtime-dependent. Emit one honest marker, never silently
-      // drop it (W4).
-      const src = child.namedChildren.find((c) => c.type === 'identifier');
-      out.push({
-        widget: src ? `...${src.text}` : '...',
-        line: child.startPosition.row + 1,
-        namedSlots: {},
-        dynamic: 'spread',
-      });
+      // Spread of a collection transform (`...items.map((x) => W(x))`): the
+      // closure builds children dynamically, so reuse the `.map` representative-
+      // child path — one element labelled `dynamic (mapped)`, the real count is
+      // runtime-bound. The guard keeps this to genuine transforms; a spread of
+      // an arbitrary call (`...getWidgets(Foo())`) must not leak its arguments
+      // as phantom children.
+      const hasTransform = child.namedChildren.some(
+        (c) => c.type === 'selector' && isCollectionTransform(c),
+      );
+      const mapped = hasTransform ? scanSequence(child.namedChildren, inBuilder, ctx) : [];
+      if (mapped.length > 0) {
+        out.push(...mapped);
+      } else {
+        // Plain spread (`...widgets`) or a tear-off whose closure is not
+        // statically visible: an opaque list reference whose element count and
+        // shape are runtime-dependent. Emit one honest marker, never silently
+        // drop it (W4).
+        const src = child.namedChildren.find((c) => c.type === 'identifier');
+        out.push({
+          widget: src ? `...${src.text}` : '...',
+          line: child.startPosition.row + 1,
+          namedSlots: {},
+          dynamic: 'spread',
+        });
+      }
       i++;
     } else {
       // Wrapper node: descend. Entering a builder closure marks the first

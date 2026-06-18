@@ -110,6 +110,28 @@ class MappedChildrenField extends StatelessWidget {
   }
 }
 
+// ── BUG N2 (spread variant): `...items.map((x) => Widget())` dropped. ──
+// Mirrors a section that splices a mapped list into a children array. Expect:
+// the `.map` closure surfaces one representative child marked dynamic (mapped),
+// the plain spread stays a dynamic marker. Actual: only `...items` emitted, the
+// mapped widget vanishes.
+class SpreadMappedChildrenField extends StatelessWidget {
+  const SpreadMappedChildrenField({required this.items, super.key});
+
+  final List<String> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        const Header(),
+        ...items.map((item) => Expanded(child: Text(item))),
+        ...footerWidgets,
+      ],
+    );
+  }
+}
+
 // ── BUG B3 (early-return variant): loading guard return hides the main tree. ──
 // Mirrors _IssueHistoryViewState. Expect: the ListView branch.
 // Actual: only the first `return` (loading SizedBox) is shown.
