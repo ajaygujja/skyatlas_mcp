@@ -14,8 +14,9 @@
  * yields a nested `relational_expression` pair and spills the real argument list
  * into a sibling `record_literal`. (Standalone statement-level use parses cleanly.)
  * Two type args at value position — `BlocBuilder<A, B>(...)` — also mis-parse in
- * a flat `relational_expression`. We recover both shapes, flagged
- * `recoveredFromMisparse`.
+ * a flat `relational_expression`. We recover both shapes; the node carries
+ * `recoveredFromMisparse` only when the spilled argument list could not be fully
+ * reconstructed, so a complete recovery reads like a clean parse.
  */
 import type { Node, Tree } from 'web-tree-sitter';
 import type { WidgetFlavor, WidgetInfo, WidgetNode } from '../model/flutter.js';
@@ -274,16 +275,31 @@ function scanSequence(
       }
       i++;
     } else if (child.type === 'spread_element') {
-      // Spread (`...widgets`): an opaque list reference whose element count and
-      // shape are runtime-dependent. Emit one honest marker, never silently
-      // drop it (W4).
-      const src = child.namedChildren.find((c) => c.type === 'identifier');
-      out.push({
-        widget: src ? `...${src.text}` : '...',
-        line: child.startPosition.row + 1,
-        namedSlots: {},
-        dynamic: 'spread',
-      });
+      // Spread of a collection transform (`...items.map((x) => W(x))`): the
+      // closure builds children dynamically, so reuse the `.map` representative-
+      // child path — one element labelled `dynamic (mapped)`, the real count is
+      // runtime-bound. The guard keeps this to genuine transforms; a spread of
+      // an arbitrary call (`...getWidgets(Foo())`) must not leak its arguments
+      // as phantom children.
+      const hasTransform = child.namedChildren.some(
+        (c) => c.type === 'selector' && isCollectionTransform(c),
+      );
+      const mapped = hasTransform ? scanSequence(child.namedChildren, inBuilder, ctx) : [];
+      if (mapped.length > 0) {
+        out.push(...mapped);
+      } else {
+        // Plain spread (`...widgets`) or a tear-off whose closure is not
+        // statically visible: an opaque list reference whose element count and
+        // shape are runtime-dependent. Emit one honest marker, never silently
+        // drop it (W4).
+        const src = child.namedChildren.find((c) => c.type === 'identifier');
+        out.push({
+          widget: src ? `...${src.text}` : '...',
+          line: child.startPosition.row + 1,
+          namedSlots: {},
+          dynamic: 'spread',
+        });
+      }
       i++;
     } else {
       // Wrapper node: descend. Entering a builder closure marks the first
@@ -392,7 +408,8 @@ function parsePlainInvocation(
  * - Nested: kids[start] is `relational_expression((Widget < TypeArg) > record_literal)`.
  *   Produced when the constructor appears inside a collection literal.
  *
- * Both are recovered best-effort and flagged `recoveredFromMisparse`.
+ * Both are recovered from the sibling spill; `recoveredFromMisparse` is set only
+ * when the argument list could not be captured (see below).
  */
 function recoverGeneric(
   kids: readonly (Node | null)[],
@@ -434,8 +451,10 @@ function recoverGeneric(
       widget: widgetId.text,
       line: widgetId.startPosition.row + 1,
       namedSlots: outerRecord ? slotsFromRecordLiteral(outerRecord, ctx) : {},
-      recoveredFromMisparse: true,
     };
+    // The arg list was recovered in full — the node is no longer best-effort.
+    // Flag only when the spilled call could not be reconstructed.
+    if (!outerRecord) outerNode.recoveredFromMisparse = true;
     if (outerTypeArgs.length > 0) outerNode.typeArgs = outerTypeArgs;
     if (inBuilder) outerNode.isBuilderCallback = true;
     return { node: outerNode, next: start + 1 };
@@ -448,26 +467,31 @@ function recoverGeneric(
   // we pass the closing `>`. Accumulate type-arg identifiers; grab a record_literal.
   const collect = (n: Node): boolean => {
     // returns true once the closing `>` has been consumed
+    let closed = false;
     for (const c of n.namedChildren) {
-      if (c.type === 'relational_operator') {
-        if (c.text === '>') return true;
-        continue; // '<'
-      }
       if (c === headId) continue;
-      if (c.type === 'identifier' || c.type === 'type_identifier') {
-        typeArgs.push(c.text);
-      } else if (c.type === 'record_literal') {
+      if (c.type === 'relational_operator') {
+        // Don't stop on the closing `>`: the argument list spills into a
+        // record_literal that follows it as a sibling at this same level
+        // (`FooState > (builder: …)`), so keep scanning to capture it.
+        if (c.text === '>') closed = true;
+        continue;
+      }
+      if (c.type === 'record_literal') {
         recordLit = c;
+      } else if (!closed && (c.type === 'identifier' || c.type === 'type_identifier')) {
+        // Identifiers before the closing `>` are type args; anything after is the
+        // spilled call, not a type parameter.
+        typeArgs.push(c.text);
       } else if (c.type === 'relational_expression') {
         if (collect(c)) {
-          // closing `>` found nested; the record_literal may be its sibling
           const rec = c.namedChildren.find((x) => x.type === 'record_literal');
           if (rec) recordLit = rec;
-          return true;
+          closed = true;
         }
       }
     }
-    return false;
+    return closed;
   };
 
   let i = start;
@@ -494,8 +518,10 @@ function recoverGeneric(
     widget: headId.text,
     line: headId.startPosition.row + 1,
     namedSlots: recordLit ? slotsFromRecordLiteral(recordLit, ctx) : {},
-    recoveredFromMisparse: true,
   };
+  // The arg list was recovered in full — the node is no longer best-effort.
+  // Flag only when the spilled call could not be reconstructed.
+  if (!recordLit) node.recoveredFromMisparse = true;
   if (typeArgs.length > 0) node.typeArgs = typeArgs;
   if (inBuilder) node.isBuilderCallback = true;
   return { node, next: i };

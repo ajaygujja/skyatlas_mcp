@@ -133,4 +133,21 @@ describe('extractRoutes', () => {
       expect.stringContaining('spread'),
     ]);
   });
+
+  it('extracts static route-table methods (arrow and block bodies)', async () => {
+    const { routeTables } = await extractFixture('route_tables.dart');
+    const module = routeTables.find((t) => t.owner === 'ModuleNavigation');
+    expect(module?.method).toBe('routes');
+    expect(module?.routes.map((r) => r.path)).toEqual(['/module', '/module/detail']);
+    const extra = routeTables.find((t) => t.owner === 'ExtraNavigation');
+    expect(extra?.routes[0]?.path).toBe('/extra');
+  });
+
+  it('marks `...Owner.routes()` as a resolvable mount, not an unknown spread', async () => {
+    const { routes, dynamic } = await extractFixture('route_tables.dart');
+    const mounts = routes.filter((r) => r.spread);
+    expect(mounts.map((r) => r.spread?.owner)).toContain('ModuleNavigation');
+    // A method-call spread is a mount, never a "contents unknown" dynamic note.
+    expect(dynamic.map((d) => d.reason).join('\n')).not.toContain('ModuleNavigation');
+  });
 });

@@ -10,6 +10,7 @@ import type {
   BlocInfo,
   DynamicRouteNote,
   Edge,
+  NamedRouteTable,
   ProviderInfo,
   RouteInfo,
   RouterGuardNote,
@@ -18,6 +19,9 @@ import type {
 import type { ImportEntry } from '../extractors/import-extractor.js';
 import type { StringConsts } from '../extractors/string-const-extractor.js';
 import type { PackageEntry } from './workspace.js';
+
+/** How `findByName` matches a query against symbol names. */
+export type MatchMode = 'exact' | 'prefix' | 'suffix' | 'substring' | 'regex';
 
 export interface FileEntry {
   /** Workspace-relative path. */
@@ -41,6 +45,8 @@ export interface FileEntry {
   routes: RouteInfo[];
   /** Route tables in this file the syntax layer cannot enumerate (Phase 3d). */
   dynamicRoutes: DynamicRouteNote[];
+  /** Static route-table methods declared in this file, the target of mount spreads. */
+  routeTables: NamedRouteTable[];
   /** Router-level guards declared in this file (go_router global `redirect:`). */
   routerGuards: RouterGuardNote[];
   /** Partial state-management edges sourced from this file (Phase 3b bloc + 3c provider). */
@@ -65,6 +71,8 @@ export class ProjectIndex {
   readonly routes: RouteInfo[] = [];
   /** Dynamic route tables across files, for honest get_route_graph reporting (Phase 3d). */
   readonly dynamicRoutes: DynamicRouteNote[] = [];
+  /** Static route-table methods across files, spliced into the graph by mount spreads. */
+  readonly routeTables: NamedRouteTable[] = [];
   /** Router-level guards across files (go_router global `redirect:`). */
   readonly routerGuards: RouterGuardNote[] = [];
   /** Cross-cutting syntactic edges, aggregated across files (Phase 3b → 3e). */
@@ -82,6 +90,7 @@ export class ProjectIndex {
     this.providers.length = 0;
     this.routes.length = 0;
     this.dynamicRoutes.length = 0;
+    this.routeTables.length = 0;
     this.routerGuards.length = 0;
     this.edges.length = 0;
     this.packages = [];
@@ -117,6 +126,7 @@ export class ProjectIndex {
     this.providers.push(...entry.providers);
     this.routes.push(...entry.routes);
     this.dynamicRoutes.push(...entry.dynamicRoutes);
+    this.routeTables.push(...entry.routeTables);
     this.routerGuards.push(...entry.routerGuards);
     this.edges.push(...entry.edges);
   }
@@ -149,6 +159,10 @@ export class ProjectIndex {
       const i = this.dynamicRoutes.indexOf(note);
       if (i !== -1) this.dynamicRoutes.splice(i, 1);
     }
+    for (const table of old.routeTables) {
+      const i = this.routeTables.indexOf(table);
+      if (i !== -1) this.routeTables.splice(i, 1);
+    }
     for (const guard of old.routerGuards) {
       const i = this.routerGuards.indexOf(guard);
       if (i !== -1) this.routerGuards.splice(i, 1);
@@ -162,16 +176,23 @@ export class ProjectIndex {
   /**
    * Name search for find_symbol: case-insensitive; exact-name hits rank
    * before prefix hits before substring hits, alphabetical within a tier.
+   * `match` selects the matching rule — substring (default) preserves the
+   * three-tier ranking; exact/prefix/suffix/regex answer anchored queries grep
+   * could express but a plain fragment cannot (e.g. classes *ending* in
+   * "Repository" without their "RepositoryImpl" subtype).
    */
   findByName(
     query: string,
-    opts: { kind?: SymbolKind; pkg?: string; includeGenerated?: boolean } = {},
+    opts: { kind?: SymbolKind; pkg?: string; includeGenerated?: boolean; match?: MatchMode } = {},
   ): Symbol[] {
+    const mode = opts.match ?? 'substring';
     const q = query.toLowerCase();
+    // Compiled once per call; case-insensitive so it matches the lowered names.
+    const rx = mode === 'regex' ? new RegExp(query, 'i') : undefined;
     const tiers: [Symbol[], Symbol[], Symbol[]] = [[], [], []];
     for (const [name, ids] of this.byName) {
       const lower = name.toLowerCase();
-      const tier = lower === q ? 0 : lower.startsWith(q) ? 1 : lower.includes(q) ? 2 : -1;
+      const tier = rankName(lower, q, mode, rx);
       if (tier === -1) continue;
       for (const id of ids) {
         const sym = this.symbolsById.get(id);
@@ -209,6 +230,31 @@ export class ProjectIndex {
     let n = 0;
     for (const f of this.files.values()) n += f.parseErrors.length;
     return n;
+  }
+}
+
+/**
+ * Ranks a (lowered) name against the query under `match`, or -1 for no match.
+ * Tiers mirror the substring default: 0 exact, 1 prefix/suffix, 2 loose
+ * substring — so anchored modes still surface an exact hit ahead of the rest.
+ */
+function rankName(
+  lower: string,
+  q: string,
+  mode: MatchMode,
+  rx: RegExp | undefined,
+): 0 | 1 | 2 | -1 {
+  switch (mode) {
+    case 'exact':
+      return lower === q ? 0 : -1;
+    case 'prefix':
+      return lower === q ? 0 : lower.startsWith(q) ? 1 : -1;
+    case 'suffix':
+      return lower === q ? 0 : lower.endsWith(q) ? 1 : -1;
+    case 'regex':
+      return rx?.test(lower) ? 0 : -1;
+    case 'substring':
+      return lower === q ? 0 : lower.startsWith(q) ? 1 : lower.includes(q) ? 2 : -1;
   }
 }
 

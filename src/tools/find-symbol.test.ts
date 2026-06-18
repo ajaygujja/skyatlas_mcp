@@ -74,3 +74,77 @@ describe('find_symbol (paging)', () => {
     expect(text).not.toContain('more — pass offset=');
   });
 });
+
+// match= lets a caller express anchored queries grep could but a fragment can't:
+// "ends in Repository" must exclude the RepositoryImpl subtype.
+describe('find_symbol (match modes)', () => {
+  const client = new Client({ name: 'find-symbol-match-test', version: '0.0.0' });
+  let root: string;
+
+  async function callFindSymbol(args: Record<string, unknown>): Promise<string> {
+    const result = await client.callTool({ name: 'find_symbol', arguments: args });
+    return (result.content as { type: string; text: string }[])[0]?.text ?? '';
+  }
+
+  beforeAll(async () => {
+    root = await mkdtemp(join(tmpdir(), 'skyatlas-find-match-'));
+    await writeFile(join(root, 'pubspec.yaml'), 'name: match_app\n');
+    await mkdir(join(root, 'lib'), { recursive: true });
+    // Two interfaces + their Impl subtypes: a substring "Repository" hits all 4,
+    // a suffix hits only the 2 interfaces.
+    await writeFile(
+      join(root, 'lib', 'repos.dart'),
+      [
+        'class UserRepository {}',
+        'class UserRepositoryImpl {}',
+        'class OrderRepository {}',
+        'class OrderRepositoryImpl {}',
+      ].join('\n') + '\n',
+    );
+
+    const { index } = await buildIndex(root);
+    const server = createServer(() => Promise.resolve(index));
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
+  });
+
+  afterAll(async () => {
+    await client.close();
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it('substring (default) matches the superset including Impl subtypes', async () => {
+    const text = await callFindSymbol({ query: 'Repository', kind: 'class' });
+    expect(text).toContain("4 match(es) for 'Repository'");
+    expect(text).toContain('UserRepositoryImpl');
+  });
+
+  it('suffix excludes the RepositoryImpl subtype', async () => {
+    const text = await callFindSymbol({ query: 'Repository', kind: 'class', match: 'suffix' });
+    expect(text).toContain("2 match(es) for 'Repository'");
+    expect(text).toContain('UserRepository ');
+    expect(text).not.toContain('RepositoryImpl');
+  });
+
+  it('exact matches a single name', async () => {
+    const text = await callFindSymbol({ query: 'UserRepository', match: 'exact' });
+    expect(text).toContain("1 match(es) for 'UserRepository'");
+    expect(text).not.toContain('UserRepositoryImpl');
+  });
+
+  it('regex matches a custom pattern', async () => {
+    const text = await callFindSymbol({ query: '^Order.*Impl$', match: 'regex' });
+    expect(text).toContain("1 match(es) for '^Order.*Impl$'");
+    expect(text).toContain('OrderRepositoryImpl');
+  });
+
+  it('rejects an invalid regex with a friendly hint', async () => {
+    const text = await callFindSymbol({ query: '(', match: 'regex' });
+    expect(text).toContain('is not a valid regex');
+  });
+
+  it('countOnly returns just the total', async () => {
+    const text = await callFindSymbol({ query: 'Repository', kind: 'class', countOnly: true });
+    expect(text).toBe("4 match(es) for 'Repository' kind=class.");
+  });
+});

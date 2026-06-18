@@ -3,6 +3,7 @@
 exports[`extractRoutes > matches snapshot: auto_route_app.gr.dart 1`] = `
 {
   "dynamic": [],
+  "routeTables": [],
   "routerGuards": [],
   "routes": [
     {
@@ -28,6 +29,7 @@ exports[`extractRoutes > matches snapshot: auto_route_app.gr.dart 1`] = `
 exports[`extractRoutes > matches snapshot: auto_route_config.dart 1`] = `
 {
   "dynamic": [],
+  "routeTables": [],
   "routerGuards": [],
   "routes": [
     {
@@ -87,6 +89,7 @@ exports[`extractRoutes > matches snapshot: auto_route_config.dart 1`] = `
 exports[`extractRoutes > matches snapshot: const_paths_guarded.dart 1`] = `
 {
   "dynamic": [],
+  "routeTables": [],
   "routerGuards": [],
   "routes": [
     {
@@ -156,6 +159,7 @@ exports[`extractRoutes > matches snapshot: dynamic_routes.dart 1`] = `
       "router": "go_router",
     },
   ],
+  "routeTables": [],
   "routerGuards": [],
   "routes": [
     {
@@ -174,6 +178,7 @@ exports[`extractRoutes > matches snapshot: dynamic_routes.dart 1`] = `
 exports[`extractRoutes > matches snapshot: go_router_app.dart 1`] = `
 {
   "dynamic": [],
+  "routeTables": [],
   "routerGuards": [
     {
       "file": "fixtures/routes/go_router_app.dart",
@@ -258,9 +263,143 @@ exports[`extractRoutes > matches snapshot: go_router_app.dart 1`] = `
 }
 `;
 
+exports[`extractRoutes > matches snapshot: route_tables.dart 1`] = `
+{
+  "dynamic": [],
+  "routeTables": [
+    {
+      "dynamic": [],
+      "file": "fixtures/routes/route_tables.dart",
+      "line": 9,
+      "method": "routes",
+      "owner": "ModuleNavigation",
+      "routes": [
+        {
+          "children": [],
+          "file": "fixtures/routes/route_tables.dart",
+          "fullPath": "/module",
+          "line": 10,
+          "path": "/module",
+          "router": "go_router",
+          "screenWidget": "ModuleScreen",
+        },
+        {
+          "children": [],
+          "file": "fixtures/routes/route_tables.dart",
+          "fullPath": "/module/detail",
+          "line": 11,
+          "path": "/module/detail",
+          "router": "go_router",
+          "screenWidget": "ModuleDetailScreen",
+        },
+      ],
+    },
+    {
+      "dynamic": [],
+      "file": "fixtures/routes/route_tables.dart",
+      "line": 17,
+      "method": "routes",
+      "owner": "ExtraNavigation",
+      "routes": [
+        {
+          "children": [],
+          "file": "fixtures/routes/route_tables.dart",
+          "fullPath": "/extra",
+          "line": 19,
+          "path": "/extra",
+          "router": "go_router",
+          "screenWidget": "ExtraScreen",
+        },
+      ],
+    },
+    {
+      "dynamic": [],
+      "file": "fixtures/routes/route_tables.dart",
+      "line": 25,
+      "method": "routes",
+      "owner": "CyclicNavigation",
+      "routes": [
+        {
+          "children": [],
+          "file": "fixtures/routes/route_tables.dart",
+          "fullPath": "/cyclic",
+          "line": 26,
+          "path": "/cyclic",
+          "router": "go_router",
+          "screenWidget": "CyclicScreen",
+        },
+        {
+          "children": [],
+          "file": "fixtures/routes/route_tables.dart",
+          "line": 27,
+          "router": "go_router",
+          "spread": {
+            "method": "routes",
+            "owner": "CyclicNavigation",
+          },
+        },
+      ],
+    },
+  ],
+  "routerGuards": [],
+  "routes": [
+    {
+      "children": [],
+      "file": "fixtures/routes/route_tables.dart",
+      "fullPath": "/host",
+      "line": 33,
+      "path": "/host",
+      "router": "go_router",
+      "screenWidget": "HostScreen",
+    },
+    {
+      "children": [],
+      "file": "fixtures/routes/route_tables.dart",
+      "line": 34,
+      "router": "go_router",
+      "spread": {
+        "method": "routes",
+        "owner": "ModuleNavigation",
+      },
+    },
+    {
+      "children": [],
+      "file": "fixtures/routes/route_tables.dart",
+      "line": 35,
+      "router": "go_router",
+      "spread": {
+        "method": "routes",
+        "owner": "ExtraNavigation",
+      },
+    },
+    {
+      "children": [],
+      "file": "fixtures/routes/route_tables.dart",
+      "line": 36,
+      "router": "go_router",
+      "spread": {
+        "method": "routes",
+        "owner": "CyclicNavigation",
+      },
+    },
+    {
+      "children": [],
+      "file": "fixtures/routes/route_tables.dart",
+      "line": 37,
+      "router": "go_router",
+      "spread": {
+        "method": "routes",
+        "owner": "MissingNavigation",
+      },
+    },
+  ],
+}
+`;
+
 exports[`extractRoutes > matches snapshot: stateful_shell.dart 1`] = `
 {
   "dynamic": [],
+  "routeTables": [],
   "routerGuards": [],
   "routes": [
     {
