@@ -24,8 +24,8 @@ It is **read-only**, runs **entirely on your machine**, and makes **no network c
 
 ## Requirements
 
-- **Node ≥ 20** (LTS). The parser is WASM (`web-tree-sitter`), so there is **no native build** —
-  it installs first-try on macOS, Linux, Windows, and ARM.
+- **Node ≥ 22** (Active LTS). The parser is WASM (`web-tree-sitter`), so there is **no native
+  build** — it installs first-try on macOS, Linux, Windows, and ARM.
 - **Dart syntax** is parsed through a vendored, pinned `tree-sitter-dart` grammar. It supports
   Dart 3.x through dot shorthands, records, patterns, class modifiers, extension types, and
   digit separators. The exact pinned grammar commit and build provenance are recorded in

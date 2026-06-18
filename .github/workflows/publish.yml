@@ -1,0 +1,61 @@
+name: Publish
+
+# Fires only when you push a version tag (created by `npm version`), e.g. v0.2.0.
+# Nothing publishes on normal pushes or PRs.
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Never let two publishes race for the same tag.
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    # Gated environment: add required reviewers in
+    # Settings → Environments → npm-publish so a tag push waits for human approval.
+    environment:
+      name: npm-publish
+      url: https://www.npmjs.com/package/skyatlas-mcp
+
+    # Least privilege. id-token: write is required for npm provenance (OIDC signing).
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Refuse to publish if the git tag doesn't match the package.json version.
+      - name: Verify tag matches package version
+        run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::tag $TAG_VERSION != package.json $PKG_VERSION"
+            exit 1
+          fi
+
+      - run: pnpm run lint
+      - run: pnpm run test
+      - run: pnpm run build
+
+      # --provenance attaches a signed, verifiable "built from this repo+commit" attestation.
+      - name: Publish to npm
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

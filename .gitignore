@@ -4,6 +4,9 @@ dist/
 coverage/
 *.tsbuildinfo
 
+# npm pack output
+*.tgz
+
 # runtime cache
 .skyatlas/
 
