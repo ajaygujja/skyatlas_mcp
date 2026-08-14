@@ -1,0 +1,853 @@
+# skyatlas-mcp — Verified Issue & Fix Specification
+
+**Audience:** an AI coding agent (or human) implementing these fixes with no prior context.
+**Source of findings:** live evaluation of skyatlas-mcp v0.2.0 against a real 4,784-file Flutter
+monorepo (`arena-pro-mobile`: 66,757 symbols, 10 packages, Bloc + go_router + injectable).
+**Date of evaluation:** 2026-08-14.
+
+---
+
+## 0. How to use this document
+
+Every issue below follows the same structure:
+
+| Section | Meaning |
+|---|---|
+| **Status** | `VERIFIED` = root cause read in source. `MEASURED` = observed behavior, cause inferred. |
+| **Reproduce** | Exact steps to see the defect yourself. **Do this first.** |
+| **Root cause** | The actual code, quoted, with `file:line`. |
+| **Layer constraint** | Which architectural layer may hold the fix. **Violating this will break the build's design rules.** |
+| **Fix** | Concrete change. |
+| **Test** | How to pin it using the repo's existing test machinery. |
+| **Do NOT** | Anti-patterns that look correct but are wrong here. |
+
+### Ground rules for the implementer
+
+1. **Verify before you code.** Every claim here includes a `file:line`. Open it. If the code has
+   moved since 2026-08-14, re-locate it before editing — do not pattern-match on line numbers alone.
+2. **Never invent tree-sitter node names.** This repo has a tool for this:
+   `pnpm dump-tree <file.dart>` (`scripts/dump-tree.ts`). It prints the real CST. The project's own
+   design doc makes this a hard rule. If you need to know what a Dart construct parses to, dump it.
+3. **Respect the layer boundaries.** The architecture is strict (see §1). A fix placed one layer too
+   low cannot work, because the data it needs does not exist at that layer.
+4. **Preserve the honesty discipline.** This codebase never guesses. Syntactic matches are labeled
+   `(syntactic)`, unresolvable things are labeled `unknown`. Do not "improve" a fix by inferring.
+5. **Do not run `dart format` or reformat unrelated files.** Scope every diff to the fix.
+
+---
+
+## 1. Architecture you must understand before editing
+
+Four layers. **Each depends only on the layer below it.** This is enforced by convention and is
+load-bearing for these fixes.
+
+```
+MCP Layer        src/tools/       — tool definitions, arg validation, output formatting.
+                                    HAS access to ProjectIndex (cross-file knowledge).
+Index Layer      src/index/       — symbol store, lookup maps, watcher, disk cache, wiring.
+                                    HAS access to ProjectIndex.
+Extraction Layer src/extractors/  — pure CST → data functions. ONE FILE AT A TIME.
+                                    NO access to ProjectIndex. NO cross-file knowledge.
+Parser Layer     src/parser/      — web-tree-sitter init/parse. Knows nothing of Flutter.
+```
+
+**Verified:** `src/extractors/widget-extractor.ts` imports only:
+
+```ts
+import type { Node, Tree } from 'web-tree-sitter';
+import type { WidgetFlavor, WidgetInfo, WidgetNode } from '../model/flutter.js';
+import { parseTypeArgList, RESOLVER_STATICS } from './dart-idioms.js';
+```
+
+No index import. **This is intentional and must be preserved.** Extractors run per-file during
+indexing and incremental re-index; giving them index access would create a circular dependency and
+break the watcher's single-file re-index path.
+
+**Consequence:** any fix requiring "is class X a Widget?" — which is cross-file knowledge — **must**
+live in `src/tools/` or `src/index/`, never in `src/extractors/`.
+
+### Key data structures (verified)
+
+`src/model/flutter.ts:47`:
+
+```ts
+export interface WidgetNode {
+  widget: string;           // Constructor name as written: "Scaffold", "ListView.builder"
+  typeArgs?: string[];
+  line: number;
+  namedSlots: Record<string, WidgetNode[]>;
+  isBuilderCallback?: boolean;
+  recoveredFromMisparse?: boolean;
+  branch?: true;
+  dynamic?: 'mapped' | 'spread';
+}
+```
+
+`src/index/project-index.ts:60-80`:
+
+```ts
+readonly files       = new Map<string, FileEntry>();
+readonly symbolsById = new Map<string, Symbol>();
+readonly byName      = new Map<string, string[]>();   // name → symbolIds
+readonly byKind      = new Map<SymbolKind, string[]>();
+readonly widgets     = new Map<string, WidgetInfo>();
+readonly blocs       = new Map<string, BlocInfo>();
+readonly routes: RouteInfo[] = [];
+stringConsts(): Map<string, string>                   // line 217
+```
+
+---
+
+## 2. ISSUE-1 — Widget tree renders non-widget constructors as layout nodes
+
+**Severity: HIGH.** This is the only issue that makes the server *emit false information*.
+**Status: FIXED (2026-08-14).** Both layers implemented — see "Post-fix notes" below for two spec
+inaccuracies caught during implementation and one additional bug the spec's sketch would have missed
+entirely.
+
+### Reproduce
+
+Against any Flutter repo containing a `BlocListener` whose `listener:` callback dispatches an event:
+
+```
+get_widget_tree(widget="FormRejectedVersionDetailsScreen", follow=true)
+```
+
+Observed output (real, from the evaluation):
+
+```
+body: BlocListener<FormRejectedVersionCubit, FormRejectedVersionState> — :82
+  listener: FormPlayerLoadConfigForRejectedVersionEvent — :91  [builder]
+    rejectedFields: ...version — :95  [spread (dynamic)]
+    rejectedFields: ...version — :96  [spread (dynamic)]
+```
+
+The corresponding Dart source:
+
+```dart
+body: BlocListener<FormRejectedVersionCubit, FormRejectedVersionState>(
+  listener: (context, state) {
+    // ...
+    context.read<FormPlayerBloc>().add(
+      FormPlayerLoadConfigForRejectedVersionEvent(   // <-- rendered as a widget node
+        formId: formId,
+        rejectedFields: {
+          ...?version?.standardFields,               // <-- rendered as child widgets
+          ...?version?.customFields,
+        },
+      ),
+    );
+  },
+  child: ...,
+)
+```
+
+`FormPlayerLoadConfigForRejectedVersionEvent` is a **BLoC event class**, not a widget. Confirmed by
+the server's own tool:
+
+```
+get_symbol(name="FormPlayerLoadConfigForRejectedVersionEvent")
+→ class FormPlayerLoadConfigForRejectedVersionEvent extends FormPlayerEvent
+```
+
+### Root cause
+
+`src/extractors/widget-extractor.ts:577-585`:
+
+```ts
+/**
+ * Event-handler slots (`onPressed`, `onTap`, `onChanged`, …) hold callbacks that
+ * fire at runtime, not part of the static layout tree — and they often construct
+ * non-widgets (Bloc events, etc.). Builder slots (`builder`, `itemBuilder`) do
+ * NOT match this and are kept. Convention: handlers are `on` + CapitalizedVerb.
+ */
+function isEventHandlerSlot(label: string): boolean {
+  return /^on[A-Z]/.test(label);
+}
+```
+
+Call sites: `widget-extractor.ts:550` and `widget-extractor.ts:609`.
+
+The author already identified this exact failure mode ("they often construct non-widgets (Bloc
+events, etc.)"). The defect is that the guard is a **naming-convention heuristic** — `/^on[A-Z]/` —
+and `listener:` does not start with `on`. Neither do several other real callback slots.
+
+### Why it matters (AI-specific)
+
+An AI consuming MCP output treats a structured tool response as higher-confidence than raw grep
+output — that is the entire value proposition of this server. A silent false positive is therefore
+strictly worse than no answer: the AI has no signal that the node is fabricated, and will reason
+downstream as though a screen renders an event class. **The honesty discipline this codebase applies
+everywhere else (`(syntactic)`, `unknown`) is violated here silently.**
+
+### Layer constraint
+
+There are two candidate fixes and they belong at **different layers**:
+
+- **Layer A (`src/extractors/`)** can only widen the slot denylist, because the extractor cannot know
+  what `FormPlayerLoadConfigForRejectedVersionEvent` is — that class lives in a different file.
+- **Layer B (`src/tools/get-widget-tree.ts`)** *can* do a real type check, because it holds
+  `ProjectIndex`. **Verified:** `get-widget-tree.ts:13,23,84,87,223` all use `index`.
+
+Do both. Layer A is cheap and catches the common case; Layer B is the correctness backstop.
+
+### Fix — Layer A (extractor, cheap, catches most)
+
+Replace the naming heuristic with an explicit non-layout slot set plus the existing convention:
+
+```ts
+/**
+ * Slots whose values are callbacks or factories, not static layout. Their bodies
+ * construct non-widgets (Bloc events, repositories) and must not be scanned as
+ * tree nodes. Builder slots (`builder`, `itemBuilder`, …) are deliberately NOT
+ * here — their closures do return widgets.
+ */
+const NON_LAYOUT_SLOTS = new Set([
+  'listener',      // BlocListener / BlocConsumer
+  'listenWhen',
+  'buildWhen',
+  'create',        // BlocProvider / Provider factory
+  'update',        // ProxyProvider
+  'redirect',      // go_router
+  'validator',
+  'onGenerateRoute',
+  'onUnknownRoute',
+]);
+
+function isNonLayoutSlot(label: string): boolean {
+  // Convention: event handlers are `on` + CapitalizedVerb (onPressed, onTap, …).
+  return NON_LAYOUT_SLOTS.has(label) || /^on[A-Z]/.test(label);
+}
+```
+
+Then update both call sites (`:550`, `:609`). Note `:609` currently special-cases `'create'`
+separately (`label !== 'create'`) — fold that into the set and delete the redundant check.
+
+**Scalability note:** a denylist does not close the class of bug — it only shrinks it. That is why
+Layer B is required.
+
+### Fix — Layer B (tool, correct, closes the class)
+
+In `src/tools/get-widget-tree.ts`, filter nodes during rendering. The rule must be
+**conservative**, because most real widgets (`Scaffold`, `Column`, `Padding`) are Flutter SDK classes
+that are **not in the index at all**:
+
+> Drop a node **only if** its constructor name resolves in the index to a class that is known **not**
+> to be a Widget. If the name is absent from the index, or its supertype chain is unresolvable, or it
+> resolves to a widget — **keep it**.
+
+Sketch (adapt to the file's existing helpers — `resolveWidgets` at `:84` and `followTarget` at `:223`
+already do index lookups you can mirror):
+
+```ts
+/**
+ * True when the index positively knows this constructor names a non-widget class.
+ * Unknown names (Flutter SDK, external packages) return false — we never drop
+ * what we cannot verify.
+ */
+function isKnownNonWidget(index: ProjectIndex, node: WidgetNode): boolean {
+  // Named constructors: "ListView.builder" → base type "ListView".
+  const base = node.widget.split('.')[0];
+  if (!base) return false;
+  if (index.widgets.has(base)) return false;      // positively a widget
+
+  const ids = index.byName.get(base);
+  if (!ids || ids.length !== 1) return false;     // absent or ambiguous → keep
+
+  const sym = index.symbolsById.get(ids[0]);
+  if (!sym || sym.kind !== 'class') return false;
+
+  // A class that is indexed, is not a known widget, and whose declared supertype
+  // is also not a known widget → positively non-layout.
+  const superName = sym.extendsType?.split('<')[0];
+  if (!superName) return false;                   // no supertype info → keep
+  return !index.widgets.has(superName);
+}
+```
+
+**Important:** verify `Symbol`'s field name for the supertype before coding — read
+`src/model/symbol.ts`. The evaluation confirmed the model carries `extendsType`, but confirm the
+exact spelling and whether it is pre-stripped of type arguments.
+
+When a node is dropped, **do not silently delete it.** Emit an honesty marker consistent with the
+rest of the codebase, e.g. append to the slot line:
+
+```
+listener: (callback — non-layout, not expanded)
+```
+
+This preserves the "never lie, never hide" contract.
+
+### Test
+
+The repo drives extraction through Vitest snapshots over `fixtures/` (each extractor has a matching
+`src/extractors/__snapshots__/*.test.ts.snap`).
+
+1. Add `fixtures/widgets/bloc_listener_event.dart` containing a `BlocListener` whose `listener:`
+   dispatches an event constructor with a spread argument — mirror the repro above.
+2. Snapshot-test the extractor: assert the `listener` slot produces **no** nodes.
+3. Add a tool-level test for Layer B in `src/tools/` covering: (a) indexed non-widget → dropped,
+   (b) unknown/SDK name → kept, (c) indexed widget → kept, (d) ambiguous duplicate name → kept.
+
+Case (b) is the regression guard that matters most — an over-eager filter would silently delete
+`Scaffold` and every other SDK widget.
+
+### Do NOT
+
+- **Do NOT** import `ProjectIndex` into `src/extractors/`. It breaks layer purity and the watcher's
+  per-file re-index path.
+- **Do NOT** filter by name suffix (`endsWith('Event')`). Naming conventions are not guarantees; this
+  is exactly the regex-heuristic failure the project was built to escape.
+- **Do NOT** drop nodes whose type cannot be resolved. Unknown ≠ non-widget.
+
+### Post-fix notes (verified against actual code, 2026-08-14)
+
+The spec's Layer B sketch had two inaccuracies that would have shipped a broken filter had they
+been copied verbatim, plus a third bug the sketch didn't anticipate at all:
+
+1. **`Symbol.extendsType` is a `TypeRef` object (`{ name, typeArgs }`), not a pre-formatted string.**
+   `src/model/symbol.ts:61`. The sketch's `sym.extendsType?.split('<')[0]` does not compile against
+   `TypeRef` and would throw at runtime against a plain string too. Correct access is
+   `sym.extendsType?.name` — already split, never needed stripping.
+2. **`ProjectIndex.widgets` is keyed by `symbolId`, not by class name.** `src/index/project-index.ts`
+   + confirmed via `get-widget-tree.ts`'s existing `followTarget` (`index.widgets.get(sym.id)`). The
+   sketch's `index.widgets.has(base)` treats `base` (a name) as a map key and would never match.
+   Fixed implementation resolves by iterating `index.widgets.values()` and comparing `.name` (mirrors
+   the file's own pre-existing `resolveWidgets` helper).
+3. **`ProjectIndex.byName` also carries the constructor symbol under the same name as its class**
+   (e.g. `LoadDataEvent` the class and `LoadDataEvent` the default constructor are two separate
+   entries in `byName.get('LoadDataEvent')`). The sketch's ambiguity check (`ids.length !== 1` →
+   ambiguous → keep) would see ≥2 ids for nearly every class with a plain constructor and treat it as
+   ambiguous every time — silently disabling the drop path for the common case while still reporting
+   the fix as active. Fixed implementation filters candidate ids to `CONTAINER_KINDS` (class / mixin /
+   enum / extension / extensionType — same set `src/index/resolve.ts`'s `resolveClass` already uses)
+   before counting, so a single class with an implicit constructor resolves unambiguously and a
+   *true* same-name-class collision (two files each declaring `class Foo`) still falls back to keep.
+
+**Lesson for the next fix that reads a `Symbol` field or an index map for the first time:** confirm
+the field's runtime shape and the map's key with a real build (`buildIndex` against a small fixture
+and inspect it directly), not just the type declaration — (3) above is a *behavioral* trap that
+`tsc`/ESLint cannot catch, since `ids.length !== 1` type-checks fine no matter which ids end up in
+the list.
+
+**Test fixtures added:** `fixtures/widgets/bloc_listener_event.dart` (Layer A regression — the exact
+repro from this section) and `fixtures/widget-tree/nonwidget_slot.dart` +
+`fixtures/widget-tree/nonwidget_slot_dup.dart` (Layer B's four cases: indexed non-widget dropped,
+unknown/SDK name kept, indexed widget kept, ambiguous duplicate name kept).
+
+**Cache note:** `CACHE_VERSION` bumped 8 → 9 (`src/index/cache.ts`). The fix changes `namedSlots`
+content for files already sitting in a v8 disk cache without changing those files' content hash, so
+an un-bumped cache would keep serving the pre-fix (incorrect) tree until each file was next edited.
+
+---
+
+## 3. ISSUE-2 — `get_route_graph` and `find_state_wiring` disagree about the same route
+
+**Severity: HIGH.** Two tools, one index, contradictory answers.
+**Status: VERIFIED.**
+
+### Reproduce
+
+```
+get_route_graph()
+→ - /form-screen → FormScreen — apps/arena_360/lib/core/router/app_navigation.dart:1042
+
+find_state_wiring(screen="FormScreen")
+→ Reachable via route: (no path) — apps/arena_360/lib/core/router/app_navigation.dart:1042
+```
+
+Same route, same `file:line`, two different answers. Source at that line:
+
+```dart
+GoRoute(
+  path: AppRoutes.formScreen.path,   // enum constant, not a string literal
+  name: AppRoutes.formScreen.name,
+  ...
+)
+```
+
+with `apps/arena_360/lib/core/router/app_routes.dart:44`:
+
+```dart
+enum AppRoutes {
+  formScreen('/form-screen'),
+  ...
+}
+```
+
+### Root cause
+
+`src/model/flutter.ts:159-173` — `RouteInfo` stores the path in **one of three mutually exclusive
+fields**:
+
+```ts
+/** Path as written (go_router), or auto_route's explicit `path:`. Absent for shells / derived paths. */
+path?: string;
+/**
+ * Verbatim path reference when `path:` is not a string literal but a const
+ * (`path: RoutePaths.home` → "RoutePaths.home"). The value is resolved against
+ * [indexed string consts]; ... Never both `path` and `pathExpr`.
+ */
+pathExpr?: string;
+/** Computed from nesting: parent fullPath joined with own path. Absent when a path is. */
+fullPath?: string;
+```
+
+Const resolution requires `index.stringConsts()` (cross-file) and therefore lives at the **tool**
+layer, in `src/tools/get-route-graph.ts:63` and the resolution helpers at `:243-298`.
+
+`src/index/wiring.ts:218` does not participate:
+
+```ts
+label: r.fullPath ?? r.path ?? '(no path)',
+```
+
+It never inspects `pathExpr` and never calls the resolver. For `FormScreen`, `path` and `fullPath`
+are both `undefined` (the path was written as a const, so it landed in `pathExpr`), so the fallback
+`'(no path)'` fires.
+
+### Why it matters
+
+The contradiction forces the consumer to open the file to adjudicate — which is precisely the work
+this server exists to eliminate. It also erodes trust in *every* answer: once two tools disagree, an
+AI must treat both as unreliable.
+
+### Layer constraint
+
+Resolution needs `stringConsts()`, i.e. cross-file data. It therefore **cannot** move into
+`src/extractors/`. It must live in `src/index/` (accessible to both `wiring.ts` and the tools) or be
+imported by both tools from a shared module.
+
+`src/index/` is the better home: `wiring.ts` already lives there, and `src/index/resolve.ts` (77
+lines) establishes the precedent of shared resolution helpers at that layer.
+
+### Fix
+
+1. Create `src/index/route-path.ts` exporting a single resolver:
+
+   ```ts
+   /**
+    * Display label for a route: computed full path, literal path, or a const
+    * reference resolved against indexed string consts. Returns the raw
+    * expression labelled "(unresolved const)" when resolution fails, and a
+    * shell/path-less marker when the route genuinely has no path.
+    */
+   export function routePathLabel(route: RouteInfo, consts: Map<string, string>): string;
+   ```
+
+2. Move the resolution logic out of `src/tools/get-route-graph.ts:243-298` into it. Keep the existing
+   semantics **exactly** — including `isShell` handling and the `"(unresolved const)"` label. This is
+   a pure extraction; behavior of `get_route_graph` must not change.
+
+3. Call it from `get-route-graph.ts` (passing `index.stringConsts()`).
+
+4. Call it from `wiring.ts:218`. `routesForScreen` (`wiring.ts:212`) will need the consts map — thread
+   `index` in, which it already receives at `:212`.
+
+### Test
+
+- **Regression guard:** snapshot `get_route_graph` output against `fixtures/routes/` **before** the
+  extraction and assert byte-identical output after. The refactor must be behavior-preserving.
+- **New coverage:** add a fixture route whose `path:` is a const reference *and* whose screen widget
+  is queryable, then assert `find_state_wiring(screen=…)` reports the resolved path, not `(no path)`.
+  `fixtures/wiring/` already contains a router file — extend it rather than creating a parallel one.
+- **Cross-tool invariant test:** for every route in a fixture repo, assert the label produced by
+  `get_route_graph` equals the label `find_state_wiring` reports for the same route. This is the test
+  that would have caught the bug and will prevent its return.
+
+### Do NOT
+
+- **Do NOT** duplicate the resolution logic into `wiring.ts`. Two copies will drift; that drift is
+  the bug you are fixing.
+- **Do NOT** change `RouteInfo`'s three-field shape. `path` / `pathExpr` / `fullPath` mutual
+  exclusivity is documented and relied on by the auto_route merge path.
+
+---
+
+## 4. ISSUE-3 — Output budget: caps exist but use the wrong unit
+
+**Severity: HIGH (practical).** This is the difference between the tool being cheaper than grep and
+more expensive than grep.
+**Status: MEASURED (behavior), VERIFIED (cap mechanism).**
+
+> **Correction to an earlier informal claim:** output caps *do* exist. Do not implement them from
+> scratch. `src/tools/find-state-wiring.ts:29` defines `MAX_LINES = 250` and applies it via
+> `capLines(...)` at `:139`, `:188`, `:233`. `src/tools/get-project-map.ts:93` uses
+> `capLines(folderLines, 25, 'use package= to narrow')`. The mechanism is sound; the **unit and
+> defaults** are the problem.
+
+### Measured cost on a real repo
+
+| Call | Approx. response size |
+|---|---|
+| `get_route_graph()` (215 routes) | ~5,000 tokens |
+| `find_state_wiring(screen="FormScreen")` (8 blocs) | ~4,500 tokens |
+| `find_state_wiring(bloc="FormPlayerBloc")` | ~4,000 tokens |
+
+Sizes are estimated from response length in the evaluation session, not instrumented. **Before
+tuning anything, instrument it** — see "Test" below.
+
+### Why the line cap does not bind
+
+`MAX_LINES = 250` caps *lines*, but the lines are long and highly redundant. Two amplifiers:
+
+1. **Repetition across blocs.** `find_state_wiring(screen="FormScreen")` expands the full dependency
+   list of *each* of 8 blocs. `FormPlayerBloc` alone has 33 constructor dependencies, each printed as
+   a full line with two absolute paths:
+
+   ```
+   usecase _getConstructionFormUseCase: GetConstructionFormUseCase — apps/arena_360/lib/features/forms/domain/usecases/get_construction_form_usecase.dart:8 (via apps/arena_360/lib/features/forms/presentation/blocs/form_player/form_player_bloc.dart:130, syntactic)
+   ```
+
+   That single line is ~60 tokens. 250 such lines is ~15,000 tokens — the cap is far above any useful
+   budget.
+
+2. **No aggregation of repeated edges.** `find_state_wiring(bloc="FormPlayerBloc")` emitted ~30
+   separate `readsBloc` lines differing only in line number:
+
+   ```
+   readsBloc · .../forms_screen.dart:541 (syntactic)
+   readsBloc · .../forms_screen.dart:717 (syntactic)
+   readsBloc · .../forms_screen.dart:880 (syntactic)
+   ...
+   ```
+
+   These carry one fact and should collapse to one line.
+
+3. **Per-line honesty labels.** `(syntactic)` repeats on every line. The response already states the
+   caveat in its footer. Stating it once per response, and marking only exceptions, removes hundreds
+   of redundant tokens without losing the guarantee.
+
+### Fix
+
+Three independent changes, in increasing order of effort:
+
+**(a) Aggregate repeated edges.** Group edges by `(kind, sourceFile)` and emit one line with a line
+list:
+
+```
+readsBloc · apps/.../forms_screen.dart:541,717,880,908,949,961,1167,1205,1222  (9 sites)
+```
+
+**(b) De-duplicate dependency expansion.** Within one response, print a bloc's dependency list at
+most once. On repeat, reference it:
+
+```
+→ FormPlayerBloc (bloc) — .../form_player_bloc.dart:75  [33 deps — see above]
+```
+
+**(c) Add a `verbosity` parameter** to `find_state_wiring`, `get_route_graph`, and `get_widget_tree`:
+
+| Value | Behavior |
+|---|---|
+| `summary` | Shape + counts + stable ids. No dependency expansion. |
+| `normal` (default) | Current output, with (a) and (b) applied. |
+| `full` | Everything, current behavior. |
+
+`summary` for the `FormScreen` case would be roughly:
+
+```
+# State wiring: screen 'FormScreen' — .../forms_screen.dart:56
+Reachable via route: /form-screen — .../app_navigation.dart:1042
+Wires 8 blocs:
+  FormPlayerBloc (bloc, 33 deps)                 [id: .../form_player_bloc.dart#FormPlayerBloc]
+  FormAssignPermissionCubit (cubit, 3 deps)      [id: .../form_assign_permission_cubit.dart#FormAssignPermissionCubit]
+  ...
+Re-run with verbosity="normal" or bloc=<name> to expand.
+```
+
+~200 tokens instead of ~4,500, and every entry carries a **stable id** the caller can drill into with
+`get_symbol` or `find_state_wiring` — no re-search round-trip.
+
+**Recommended default:** keep `normal` as the default so existing users see no regression, but make
+`summary` the documented first call in each tool's description (the descriptions already steer usage
+well — e.g. `get_project_map` says "Call this FIRST in a session").
+
+### Test
+
+1. **Instrument first.** Extend `scripts/benchmark.ts` (57 lines, already records to
+   `benchmarks/history.jsonl` under `--record`) to capture **response character/token size** per tool
+   call against a fixture repo, not just indexing time. Without this you are tuning blind.
+2. Add budget assertions: e.g. `summary` output for any tool must be < 500 tokens; `normal` < 2,000.
+   Fail the test if exceeded — this prevents silent regrowth.
+3. Assert (a) and (b) preserve information: every `file:line` present in `full` output must be
+   recoverable from `normal` output.
+
+### Do NOT
+
+- **Do NOT** simply lower `MAX_LINES`. Truncation loses information silently; aggregation does not.
+  Truncation also hits the *end* of the response, which is arbitrary — the dropped content is not the
+  least important content.
+- **Do NOT** remove the `(syntactic)` guarantee. Move it to the header; do not delete it.
+- **Do NOT** drop `file:line` references to save tokens. They are the highest-value tokens in the
+  response — they are what makes the answer actionable.
+
+---
+
+## 5. ISSUE-4 — `get_project_map` folder depth is hardcoded to 2
+
+**Severity: MEDIUM.** **Status: VERIFIED.**
+
+### Reproduce
+
+```
+get_project_map()
+→ ## arena_360 — apps/arena_360
+   - lib: 5 file(s)
+   - lib/app: 23 file(s)
+   - lib/core: 297 file(s)
+   - lib/features: 3664 file(s)     <-- 76% of the repo, one line, zero structure
+   - lib/gen: 394 file(s)
+```
+
+### Root cause
+
+`src/tools/get-project-map.ts:116`:
+
+```ts
+const folder = rel.split('/').slice(0, -1).slice(0, 2).join('/') || '(root)';
+```
+
+`.slice(0, 2)` hardcodes two path segments. `capLines(folderLines, 25, 'use package= to narrow')` at
+`:93` then caps the list at 25 entries.
+
+### Why it matters
+
+For a feature-first Flutter repo — the dominant convention, and the one this server targets —
+everything meaningful lives under `lib/features/<feature>/`. Depth 2 collapses the entire app into a
+single uninformative line, defeating the tool's stated purpose ("Call this FIRST in a session, before
+grepping or opening files, to orient in the codebase").
+
+### Fix
+
+Add an optional `depth` parameter (default 2, so existing behavior is unchanged; max ~4 to bound
+output):
+
+```ts
+const folder = rel.split('/').slice(0, -1).slice(0, depth).join('/') || '(root)';
+```
+
+Raise the `capLines` limit proportionally when `depth > 2`, or the cap will swallow the extra detail
+you just enabled.
+
+**Better default (consider):** auto-deepen when a single folder holds a disproportionate share of the
+package's files (e.g. > 40%). This makes the *first* call informative without the caller knowing to
+ask — which matters, because the caller does not yet know the repo's shape. That is the whole point
+of the tool.
+
+### Test
+
+Use `fixtures/mini-app/` (already contains a root package plus a nested `packages/shared_ui`).
+Add a deep nested feature folder and assert: `depth=2` output is unchanged from today's snapshot;
+`depth=3` reveals the nested folders; the cap message appears when the limit is hit.
+
+---
+
+## 6. ISSUE-5 — Route builder patterns that lose the screen widget
+
+**Severity: MEDIUM (narrow).** **Status: MEASURED.**
+
+### Scope — measure before you fix
+
+**3 of 215 routes** (98.6% resolution) lost their screen widget in the evaluation. The repo contains
+160 block-body builders and resolves 157 of them. **This is a narrow gap, not a systemic failure.**
+Do not over-engineer it.
+
+### The two failing patterns
+
+**Pattern A — local-variable indirection:**
+
+```dart
+builder: (context, state) {
+  final map = state.extra as Map<String, dynamic>?;
+  final issueId = map?[ArgumentConstants.issueId] as String? ?? '';
+  final screen = RejectedWorklogDetailsScreen(issueId: issueId);  // assigned, not returned directly
+  return screen;                                                   // returns an identifier
+},
+```
+
+**Pattern B — named constructor / static factory:**
+
+```dart
+builder: (context, state) {
+  return AuditLogsScreen.route(extra: state.extra);   // static method, not a constructor call
+},
+```
+
+### Fix
+
+In `src/extractors/route-extractor.ts` (673 lines — the largest extractor), where the builder body is
+scanned for the screen constructor:
+
+- **Pattern A:** when the returned expression is a bare identifier, resolve it *within the same
+  function body* to its local `final <name> = <ConstructorCall>(...)` declaration. This is
+  single-file, single-scope — legal at the extractor layer, no index needed.
+- **Pattern B:** accept `Type.method(...)` as a screen reference when the receiver is a
+  capitalized identifier. Record the widget as `AuditLogsScreen` — but **only if** you can label it
+  honestly. Prefer emitting `AuditLogsScreen (via .route factory)` over silently claiming it is a
+  direct construction, since a static factory may return a different widget.
+
+**Verify the CST shape first:** run `pnpm dump-tree` on a file containing each pattern before writing
+any matcher. Do not guess node type names.
+
+### Test
+
+Add `fixtures/routes/builder_indirection.dart` with both patterns plus a control (direct
+`=> const Screen()`), and snapshot the extractor output. Then run `pnpm doctor <real-repo>` before
+and after to confirm no regression in overall parse coverage.
+
+### Do NOT
+
+- **Do NOT** follow identifiers across function boundaries or files at the extractor layer. Local
+  scope only. Anything wider belongs at the index layer.
+- **Do NOT** report a static-factory result as a plain constructor. Label it.
+
+---
+
+## 7. ISSUE-6 — Cosmetic: record return types keep raw source whitespace
+
+**Severity: LOW.** **Status: MEASURED.**
+
+### Reproduce
+
+```
+get_symbol(name="FormPlayerBloc")
+→ - method ({
+    Map<String, CustomFieldPayload> standardFields,
+    Map<String, CustomFieldPayload> customFields,
+  }) _buildStandardFieldsAndCustomFields(...) — :2739
+```
+
+A Dart record return type spanning multiple source lines is emitted verbatim, breaking the
+one-member-per-line format that makes the output scannable.
+
+### Fix
+
+Normalize whitespace in verbatim type text before rendering: collapse runs of whitespace (including
+newlines) to a single space. Do this **at the render layer** (`src/tools/format.ts` or the member
+formatter in `src/tools/get-symbol.ts`), **not** in the extractor — the model's contract is that type
+fields hold *verbatim source text*, and the design doc's "honesty rule" depends on that. Presentation
+normalization is a display concern.
+
+### Test
+
+Add a fixture with a multi-line record return type; assert one output line per member.
+
+---
+
+## 8. ISSUE-7 — `SERVER_VERSION` is stale
+
+**Severity: TRIVIAL.** **Status: VERIFIED.**
+
+`src/server.ts` hardcodes `SERVER_VERSION = '0.1.0'` while `package.json` is at `0.2.0`. Only affects
+the version reported to the MCP client during handshake.
+
+**Fix:** read the version from `package.json` at build time, or add a release-checklist assertion that
+the two match. A test asserting `SERVER_VERSION === pkg.version` is the durable fix — the constant
+will drift again otherwise.
+
+---
+
+## 9. Missing capabilities (new features, not defects)
+
+Ranked by how often the gap forced a fallback to `rg` during the evaluation.
+
+### 9.1 `find_references` — highest value
+
+**Gap:** `find_symbol` is declarations-only by design ("Find Dart declarations by name"). There is no
+way to ask "who calls / reads / constructs X". This is the single most common code-navigation
+question, and it currently falls back to grep — directly undercutting the server's premise.
+
+**Design notes:**
+- The index already stores an `Edge[]` graph with `constructsWidget`, `readsBloc`, `createsBloc`,
+  `watchesProvider`, `extends`/`implements`/`mixesIn`, `imports` — a substantial reference graph
+  already exists.
+- Method/function call sites are **not** currently extracted. That is the new work: a call-site
+  extractor producing `calls` edges.
+- Honesty: these are name matches, not resolved calls. Label them `(syntactic)` like everything else,
+  and be explicit that overload/same-name collisions are not disambiguated.
+- Output budget: a hot symbol will have hundreds of references. Design this tool with `summary` mode
+  and per-file aggregation **from day one** (see ISSUE-3) rather than retrofitting.
+
+### 9.2 `get_di_graph` — highest differentiation
+
+**Gap:** the server detects `injectable` in 1,359 files and `get_it` in 2 (via
+`src/index/stack-detect.ts`), then exposes nothing queryable. The annotation data is already
+extracted (`@injectable`, `@LazySingleton(as: X)` appear in `find_symbol` output today).
+
+**Why it matters:** the official Dart MCP server does not map DI. This is a genuine moat, and in
+clean-architecture Flutter repos "what implementation is bound to this interface, and in what scope?"
+is a constant question. The `@LazySingleton(as: FeatureRepository)` → `FeatureRepositoryImpl` binding
+is exactly the kind of whole-repo structural fact this server exists to answer.
+
+**Suggested shape:** `get_di_graph(type?)` → registrations, scope (`@injectable` /
+`@LazySingleton` / `@Singleton`), the `as:` binding target, and the module (`@module`) if any.
+
+### 9.3 Lower priority
+
+- **`get_file_outline(path)`** — "what is in this file" currently requires a full `Read`. Cheap to
+  build on existing symbol data.
+- **Bloc event → handler map** — `FormPlayerBloc` has 90 members; pairing `on<FooEvent>(_onFoo)`
+  requires reading the file. The `on<Event>` sites are already extracted by `bloc-extractor.ts`.
+- **`get_bloc_graph`** — cross-bloc coordination edges (which bloc dispatches into which).
+
+---
+
+## 10. Recommended order of work
+
+| # | Item | Why this order | Risk |
+|---|---|---|---|
+| 1 | ISSUE-1 (widget filter) — **FIXED 2026-08-14** | Only issue emitting false data. Correctness before everything. | Low — additive filter, guarded by keep-on-unknown rule |
+| 2 | ISSUE-2 (route/wiring resolver) | Pure refactor with a byte-identical regression guard available. | Low |
+| 3 | ISSUE-3 (output budget) | Largest practical gain; unblocks real use on large repos. | Medium — needs instrumentation first |
+| 4 | ISSUE-4 (folder depth) | One-line change plus a param. | Low |
+| 5 | 9.1 `find_references` | Biggest capability gap. Build after ISSUE-3 so it ships with budgeting built in. | High — new extractor |
+| 6 | 9.2 `get_di_graph` | Differentiator; data already extracted. | Medium |
+| 7 | ISSUE-5, 6, 7 | Narrow / cosmetic / trivial. | Low |
+
+**Rationale for 1–2 first:** both are small, both are correctness, and both have clean regression
+guards. Shipping them first means every later change is measured against a trustworthy baseline.
+
+**Rationale for 3 before 5:** adding `find_references` to a server that already over-emits would
+compound the budget problem. Fix the economics, then add the feature that will stress them hardest.
+
+---
+
+## 11. Verification checklist before opening a PR
+
+- [ ] `pnpm lint` clean (ESLint runs `typescript-eslint` **strictTypeChecked**; `no-console` is an
+      **error** except `console.error` — stdout is reserved for the MCP protocol).
+- [ ] `pnpm test` green, including updated snapshots (review every snapshot diff — an unexpected
+      snapshot change is a behavior change).
+- [ ] `pnpm build` clean under `tsconfig.build.json` (`strict`, `noUncheckedIndexedAccess`,
+      `exactOptionalPropertyTypes`, `noImplicitOverride`).
+- [ ] `pnpm doctor <large-real-repo> --cold` shows **no** new Tier-A skips (`--json` exits 1 on any).
+- [ ] `pnpm benchmark <large-real-repo> --cold` within budget (cold < 10s / 1000 files, RSS < 500MB).
+- [ ] `CACHE_VERSION` in `src/index/cache.ts` bumped **if** any indexed data shape changed. Currently
+      8. Forgetting this serves stale cached data shaped for the old schema.
+- [ ] `CHANGELOG.md` updated.
+- [ ] No `dart format` / mass reformat in the diff.
+
+---
+
+## 12. Confidence and provenance
+
+| Claim | How established |
+|---|---|
+| ISSUE-1 root cause | Read `widget-extractor.ts:577-585`, call sites `:550`, `:609`; extractor import list confirms no index access |
+| ISSUE-1 false positive is real | `get_symbol` confirms the class `extends FormPlayerEvent`; Dart source read at the cited lines |
+| ISSUE-2 root cause | Read `wiring.ts:218`, `flutter.ts:159-173`, `get-route-graph.ts:63,243-298` |
+| ISSUE-3 cap mechanism | Read `find-state-wiring.ts:29,139,188,233`; `get-project-map.ts:93` |
+| ISSUE-3 token sizes | **Estimated** from response length during evaluation — not instrumented. Re-measure before tuning. |
+| ISSUE-4 root cause | Read `get-project-map.ts:116` |
+| ISSUE-5 scope (3/215) | Counted from `get_route_graph` output; failing patterns read in the target repo's source |
+| ISSUE-6, 7 | Observed in tool output / read in `server.ts` |
+| Missing capabilities | Confirmed absent from `src/server.ts` tool registration (exactly six tools registered) |
+
+**Not verified — check before relying on it:**
+- The exact field name and normalization of the supertype on `Symbol` (`extendsType`) — read
+  `src/model/symbol.ts` before writing the ISSUE-1 Layer B filter.
+- Whether `route-extractor.ts`'s builder scan has a single entry point or several — read before
+  implementing ISSUE-5.
+- Internals of `widget-extractor.ts` and `route-extractor.ts` beyond the cited functions were not
+  read line-by-line.

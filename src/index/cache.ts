@@ -19,7 +19,10 @@ import { logger } from '../shared/logger.js';
 // v6: FileEntry.stringConsts added; RouteInfo gains pathExpr/isShell (path-const resolution).
 // v7: FileEntry.routerGuards added; RouteInfo gains shellWidget/redirectTo (route-graph polish).
 // v8: FileEntry.routeTables added; RouteInfo gains spread (static route-table mounts).
-const CACHE_VERSION = 8;
+// v9: widget-extractor non-layout slot fix (ISSUE-1 Layer A) changes namedSlots
+//     content (listener/create/etc. no longer scanned) for already-cached files;
+//     shape is unchanged but stale entries would silently keep the old bug.
+const CACHE_VERSION = 9;
 
 interface CacheFile {
   version: number;

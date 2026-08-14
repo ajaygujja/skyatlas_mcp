@@ -75,4 +75,34 @@ describe('get_widget_tree (formatted response)', () => {
     expect(text).toContain('Column');
     expect(text).toMatch(/HeaderCard .*\[follows HeaderCard/);
   });
+
+  // ISSUE-1 Layer B: the index-backed filter must drop only what it positively
+  // knows is not a Widget, and keep everything it cannot verify.
+  describe('non-widget filter (ISSUE-1 Layer B)', () => {
+    it('drops an indexed non-widget constructor, with an honesty marker', async () => {
+      const text = await callTree({ widget: 'NonWidgetHostScreen' });
+      expect(text).toContain('children: (LoadDataEvent — non-widget, not expanded)');
+      // No tags (line, builder, etc.) leak through from the dropped node.
+      expect(text).not.toMatch(/LoadDataEvent — :\d+/);
+    });
+
+    it('keeps an unknown/SDK name (Placeholder is not indexed)', async () => {
+      const text = await callTree({ widget: 'NonWidgetHostScreen' });
+      expect(text).toMatch(/Placeholder — :\d+/);
+    });
+
+    it('keeps an indexed widget (HeaderCard)', async () => {
+      const text = await callTree({ widget: 'NonWidgetHostScreen' });
+      expect(text).toMatch(/HeaderCard — :\d+/);
+    });
+
+    it('keeps an ambiguous duplicate name rather than guessing', async () => {
+      const text = await callTree({ widget: 'NonWidgetHostScreen' });
+      // DuplicateNode is declared twice (nonwidget_slot.dart / _dup.dart) with
+      // different, non-widget supertypes — resolution is ambiguous, so the
+      // conservative filter must not drop it.
+      expect(text).toMatch(/DuplicateNode — :\d+/);
+      expect(text).not.toContain('DuplicateNode — non-widget');
+    });
+  });
 });

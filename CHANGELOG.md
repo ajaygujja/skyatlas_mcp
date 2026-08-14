@@ -6,6 +6,21 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Fixed
+
+- `get_widget_tree`: constructor calls in non-layout slots (`listener:`, `create:`, `update:`,
+  `validator:`, go_router `redirect:`, etc.) are no longer surfaced as fabricated layout nodes — the
+  previous `/^on[A-Z]/`-only heuristic missed `listener:` and friends, so a BlocListener's dispatched
+  event (and any spread arguments inside it) rendered as if it were part of the widget tree
+  (ISSUE-1). Fixed at two layers: the extractor now excludes an explicit non-layout slot set in
+  addition to the `on*` convention, and `get_widget_tree` additionally drops any constructor the
+  index positively resolves to a non-Widget class, conservatively keeping anything absent, ambiguous,
+  or unresolvable (most real widgets are unindexed Flutter SDK classes). Dropped nodes are marked
+  `(Name — non-widget, not expanded)` rather than silently omitted.
+- Disk cache bumped to v9: the extractor fix above changes `namedSlots` content for files already in
+  a v8 cache without changing their content hash, so a stale cache would otherwise keep serving the
+  old, incorrect tree until the file changed.
+
 ## [0.2.0] - 2026-06-19
 
 ### Added

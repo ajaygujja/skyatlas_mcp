@@ -161,6 +161,19 @@ describe('extractWidgets', () => {
     expect((inner?.namedSlots['children'] ?? []).map((c) => c.widget)).toEqual(['Text', 'Text']);
   });
 
+  it('omits a BlocListener `listener:` callback that dispatches an event constructor (ISSUE-1)', async () => {
+    const fixture = await extractFixture('bloc_listener_event.dart');
+    const screen = fixture.find((w) => w.name === 'FormRejectedVersionDetailsScreen');
+    const scaffold = screen?.buildTree?.[0];
+    expect(scaffold?.widget).toBe('Scaffold');
+    const blocListener = scaffold?.namedSlots['body']?.[0];
+    expect(blocListener?.widget).toBe('BlocListener');
+    // The event constructor and its spread-argument children must not appear —
+    // `listener:` fires at runtime and does not build layout.
+    expect(blocListener?.namedSlots['listener']).toBeUndefined();
+    expect(blocListener?.namedSlots['child']?.[0]?.widget).toBe('Text');
+  });
+
   it('marks a collection-`if` child conditional and a spread as dynamic', async () => {
     const { tree } = await parseFile(resolve(FIXTURES, '../stress/widgets_hard.dart'));
     const widgets = extractWidgets(tree, 'fixtures/stress/widgets_hard.dart');

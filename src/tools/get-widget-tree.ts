@@ -11,8 +11,9 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { ProjectIndex } from '../index/project-index.js';
-import { resolveClass } from '../index/resolve.js';
+import { CONTAINER_KINDS, resolveClass } from '../index/resolve.js';
 import type { WidgetInfo, WidgetNode } from '../model/flutter.js';
+import type { Symbol } from '../model/symbol.js';
 import { capLines, errorResult, textResult } from './format.js';
 
 const MAX_LINES = 200;
@@ -90,6 +91,48 @@ function resolveWidgets(index: ProjectIndex, name: string): WidgetInfo[] {
   return out.sort((a, b) => a.symbolId.localeCompare(b.symbolId));
 }
 
+/** Exact (case-sensitive) match: is `name` a class the index positively knows is a Widget? */
+function isWidgetName(index: ProjectIndex, name: string): boolean {
+  for (const w of index.widgets.values()) {
+    if (w.name === name) return true;
+  }
+  return false;
+}
+
+/**
+ * True only when the index positively knows `widgetName` names a non-Widget
+ * class. Conservative by construction (ISSUE-1 Layer B): absent names (Flutter
+ * SDK / external packages — most real widgets), ambiguous names (several
+ * same-named classes), and classes with no resolvable supertype all return
+ * false — we never drop what we cannot verify.
+ */
+function isKnownNonWidget(index: ProjectIndex, widgetName: string): boolean {
+  // Named constructors: "ListView.builder" → base type "ListView".
+  const base = widgetName.split('.')[0];
+  if (!base) return false;
+  if (isWidgetName(index, base)) return false; // positively a widget
+
+  const ids = index.byName.get(base) ?? [];
+  // `byName` also carries the constructor symbol, which shares the class's
+  // name — filter to container-kind declarations (as resolveClass does) so a
+  // plain class with one constructor isn't misread as an ambiguous name.
+  const classSyms: Symbol[] = [];
+  for (const id of ids) {
+    const sym = index.symbolsById.get(id);
+    if (sym && CONTAINER_KINDS.has(sym.kind)) classSyms.push(sym);
+  }
+  if (classSyms.length !== 1) return false; // absent or ambiguous → keep
+
+  const sym = classSyms[0];
+  if (!sym || sym.kind !== 'class') return false;
+
+  // A class that is indexed, is not itself a known widget, and whose declared
+  // supertype is also not a known widget → positively non-layout.
+  const superName = sym.extendsType?.name;
+  if (!superName) return false; // no supertype info → keep
+  return !isWidgetName(index, superName);
+}
+
 /** Carries the resolution context a follow walk needs into the recursion. */
 interface RenderContext {
   index: ProjectIndex;
@@ -153,8 +196,18 @@ function renderNode(
   ctx: RenderContext,
 ): void {
   const indent = '  '.repeat(depth);
-  const head = node.typeArgs ? `${node.widget}<${node.typeArgs.join(', ')}>` : node.widget;
   const prefix = slot ? `${slot}: ` : '';
+
+  // ISSUE-1 Layer B: the index positively knows this constructor names a
+  // non-widget class (e.g. a Bloc event dispatched from a `listener:` /
+  // `create:` callback that Layer A's slot filter didn't catch). Drop the
+  // node but say so — never silently omit (Working Rule 4).
+  if (isKnownNonWidget(ctx.index, node.widget)) {
+    out.push(`${indent}${prefix}(${node.widget} — non-widget, not expanded)`);
+    return;
+  }
+
+  const head = node.typeArgs ? `${node.widget}<${node.typeArgs.join(', ')}>` : node.widget;
   const tags: string[] = [];
   if (node.branch) tags.push('alternative branch');
   if (node.conditional) tags.push('conditional');
