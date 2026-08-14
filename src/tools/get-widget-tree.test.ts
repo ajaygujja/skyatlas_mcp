@@ -104,5 +104,16 @@ describe('get_widget_tree (formatted response)', () => {
       expect(text).toMatch(/DuplicateNode — :\d+/);
       expect(text).not.toContain('DuplicateNode — non-widget');
     });
+
+    // SpecialCard's supertype chain is StatelessWidget → BaseCard → FancyCard
+    // → SpecialCard; only BaseCard is a direct Flutter-base subclass and thus
+    // an index.widgets entry. The filter must walk the full chain to find
+    // BaseCard rather than judging SpecialCard non-widget from its immediate
+    // (unindexed) supertype FancyCard alone.
+    it('keeps a leaf 3 levels below a known widget base (transitive supertype walk)', async () => {
+      const text = await callTree({ widget: 'ChainHostScreen' });
+      expect(text).toMatch(/SpecialCard — :\d+/);
+      expect(text).not.toContain('SpecialCard — non-widget');
+    });
   });
 });

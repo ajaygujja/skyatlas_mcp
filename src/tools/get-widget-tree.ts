@@ -91,46 +91,72 @@ function resolveWidgets(index: ProjectIndex, name: string): WidgetInfo[] {
   return out.sort((a, b) => a.symbolId.localeCompare(b.symbolId));
 }
 
-/** Exact (case-sensitive) match: is `name` a class the index positively knows is a Widget? */
-function isWidgetName(index: ProjectIndex, name: string): boolean {
-  for (const w of index.widgets.values()) {
-    if (w.name === name) return true;
-  }
-  return false;
+/** Names of every class the index positively knows is a Widget, built once per request. */
+function widgetNameSet(index: ProjectIndex): Set<string> {
+  const out = new Set<string>();
+  for (const w of index.widgets.values()) out.add(w.name);
+  return out;
 }
 
 /**
- * True only when the index positively knows `widgetName` names a non-Widget
- * class. Conservative by construction (ISSUE-1 Layer B): absent names (Flutter
- * SDK / external packages — most real widgets), ambiguous names (several
- * same-named classes), and classes with no resolvable supertype all return
- * false — we never drop what we cannot verify.
+ * A single container (class/mixin/enum/…) declaration matching `name`,
+ * filtered to CONTAINER_KINDS the same way `resolveClass` does — `byName`
+ * also carries the constructor symbol under the class's own name, so an
+ * unfiltered count would misread a plain class with one constructor as an
+ * ambiguous name. Returns undefined when absent, ambiguous, or not a class.
  */
-function isKnownNonWidget(index: ProjectIndex, widgetName: string): boolean {
-  // Named constructors: "ListView.builder" → base type "ListView".
-  const base = widgetName.split('.')[0];
-  if (!base) return false;
-  if (isWidgetName(index, base)) return false; // positively a widget
-
-  const ids = index.byName.get(base) ?? [];
-  // `byName` also carries the constructor symbol, which shares the class's
-  // name — filter to container-kind declarations (as resolveClass does) so a
-  // plain class with one constructor isn't misread as an ambiguous name.
+function resolveUnambiguousClass(index: ProjectIndex, name: string): Symbol | undefined {
+  const ids = index.byName.get(name) ?? [];
   const classSyms: Symbol[] = [];
   for (const id of ids) {
     const sym = index.symbolsById.get(id);
     if (sym && CONTAINER_KINDS.has(sym.kind)) classSyms.push(sym);
   }
-  if (classSyms.length !== 1) return false; // absent or ambiguous → keep
-
+  if (classSyms.length !== 1) return undefined; // absent or ambiguous
   const sym = classSyms[0];
-  if (!sym || sym.kind !== 'class') return false;
+  return sym?.kind === 'class' ? sym : undefined;
+}
 
-  // A class that is indexed, is not itself a known widget, and whose declared
-  // supertype is also not a known widget → positively non-layout.
-  const superName = sym.extendsType?.name;
-  if (!superName) return false; // no supertype info → keep
-  return !isWidgetName(index, superName);
+/** Bounds the supertype walk in isKnownNonWidget against pathological chains. */
+const MAX_SUPERTYPE_CHAIN_DEPTH = 20;
+
+/**
+ * True only when the index positively knows `widgetName` names a non-Widget
+ * class. `index.widgets` only registers a class whose DIRECT superclass is a
+ * known Flutter base (`widget-extractor.ts` `flavorFor` checks one hop), so a
+ * subclass of a subclass of `StatelessWidget` is a real widget without being
+ * in that set — this walks the declared supertype chain until it either finds
+ * a known widget ancestor (keep) or fully resolves to a class with no further
+ * supertype inside the index (positively non-widget). Any ancestor that is
+ * unresolvable (external/SDK base, ambiguous same-name declaration) or a
+ * cycle stops the walk and keeps the node: unknown is never treated as
+ * non-widget.
+ */
+function isKnownNonWidget(index: ProjectIndex, widgetNames: Set<string>, widgetName: string): boolean {
+  // Named constructors: "ListView.builder" → base type "ListView".
+  const base = widgetName.split('.')[0];
+  if (!base) return false;
+  if (widgetNames.has(base)) return false; // positively a widget
+
+  let sym = resolveUnambiguousClass(index, base);
+  if (!sym) return false; // absent or ambiguous → keep
+
+  const visited = new Set<string>();
+  for (let i = 0; i < MAX_SUPERTYPE_CHAIN_DEPTH; i++) {
+    if (visited.has(sym.id)) return false; // cycle in supertype chain → keep
+    visited.add(sym.id);
+
+    const superName = sym.extendsType?.name;
+    if (!superName) return true; // chain fully resolved in index, no widget ancestor → non-widget
+
+    if (widgetNames.has(superName)) return false; // ancestor is a known widget → keep
+
+    const superSym = resolveUnambiguousClass(index, superName);
+    if (!superSym) return false; // chain leaves the index (external/SDK, or ambiguous) → keep
+
+    sym = superSym;
+  }
+  return false; // exceeded bounded depth → keep, conservative
 }
 
 /** Carries the resolution context a follow walk needs into the recursion. */
@@ -139,6 +165,8 @@ interface RenderContext {
   follow: boolean;
   /** Widget symbolIds on the current path — guards against build-tree cycles. */
   visited: Set<string>;
+  /** Names of every indexed Widget class, built once per request (see widgetNameSet). */
+  widgetNames: Set<string>;
 }
 
 function formatWidget(
@@ -176,6 +204,7 @@ function formatWidget(
     index,
     follow,
     visited: new Set([info.symbolId, from.symbolId]),
+    widgetNames: widgetNameSet(index),
   };
   for (const root of roots) {
     renderNode(root, undefined, 0, maxDepth, body, ctx);
@@ -202,7 +231,7 @@ function renderNode(
   // non-widget class (e.g. a Bloc event dispatched from a `listener:` /
   // `create:` callback that Layer A's slot filter didn't catch). Drop the
   // node but say so — never silently omit (Working Rule 4).
-  if (isKnownNonWidget(ctx.index, node.widget)) {
+  if (isKnownNonWidget(ctx.index, ctx.widgetNames, node.widget)) {
     out.push(`${indent}${prefix}(${node.widget} — non-widget, not expanded)`);
     return;
   }

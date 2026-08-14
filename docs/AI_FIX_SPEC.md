@@ -103,7 +103,8 @@ stringConsts(): Map<string, string>                   // line 217
 **Severity: HIGH.** This is the only issue that makes the server *emit false information*.
 **Status: FIXED (2026-08-14).** Both layers implemented — see "Post-fix notes" below for two spec
 inaccuracies caught during implementation and one additional bug the spec's sketch would have missed
-entirely.
+entirely. Two follow-up defects in the Layer B implementation itself were found and fixed the same
+day — see "Follow-up fixes" below.
 
 ### Reproduce
 
@@ -338,6 +339,49 @@ unknown/SDK name kept, indexed widget kept, ambiguous duplicate name kept).
 **Cache note:** `CACHE_VERSION` bumped 8 → 9 (`src/index/cache.ts`). The fix changes `namedSlots`
 content for files already sitting in a v8 disk cache without changing those files' content hash, so
 an un-bumped cache would keep serving the pre-fix (incorrect) tree until each file was next edited.
+
+### Follow-up fixes (2026-08-14)
+
+Two defects in the Layer B filter itself, found by re-reading `isKnownNonWidget` and
+`widget-extractor.ts`'s `flavorFor` (`src/extractors/widget-extractor.ts:102-107`) side by side.
+
+**1. The non-widget filter only checked one supertype hop; widget registration also only goes one
+hop, so the two facts compound into a false positive.**
+
+`flavorFor` registers a class in `index.widgets` only when its *declared* superclass name is a known
+Flutter base (`FLAVOR_BY_SUPERCLASS`, or a name ending in `Widget`). It never looks past that one
+name. So given:
+
+```dart
+class BaseCard extends StatelessWidget {}   // direct match → registered as a widget
+class FancyCard extends BaseCard {}         // superclass is "BaseCard", not a known base → NOT registered
+class SpecialCard extends FancyCard {}      // same — NOT registered, despite being a real widget
+```
+
+the pre-fix `isKnownNonWidget` (`src/tools/get-widget-tree.ts`, prior version) read `SpecialCard`'s
+declared supertype (`FancyCard`), found it absent from `index.widgets`, and concluded `SpecialCard`
+was non-layout — dropping a real widget from the tree with a false `(non-widget, not expanded)`
+marker. The defect was structural, not a typo: the filter and the registration it depends on share
+the same one-hop blind spot, so no single-hop fix at the filter site could close it.
+
+**Fix:** `isKnownNonWidget` now walks the declared supertype chain — resolving each ancestor's own
+declared supertype in turn — until it either reaches a name the index positively knows is a widget
+(keep the node) or fully resolves the chain inside the index without ever finding one (conclude
+non-widget). The walk is bounded (`MAX_SUPERTYPE_CHAIN_DEPTH = 20`) and cycle-guarded with a visited
+set; any ancestor that is unresolvable (external/SDK base, or an ambiguous same-name declaration) or a
+detected cycle stops the walk and keeps the node, preserving the "unknown is never non-widget" rule
+the original filter established. Test: `fixtures/widget-tree/supertype_chain.dart` — a 3-level chain
+(`StatelessWidget → BaseCard → FancyCard → SpecialCard`) with a `ChainHostScreen` build tree, asserting
+the `SpecialCard` leaf is kept.
+
+**2. `isWidgetName` re-scanned all of `index.widgets.values()` on every rendered tree node.**
+
+For a widget tree with N nodes and a project with W indexed widgets, the filter cost O(N × W) per
+`get_widget_tree` call. Fixed by building a `Set<string>` of widget names once per call (`RenderContext.widgetNames`,
+constructed in `formatWidget`) and looking up in O(1) inside `isKnownNonWidget`.
+
+No cached data shape changed by either fix — both operate purely at request time inside
+`get-widget-tree.ts` — so `CACHE_VERSION` stayed at 9.
 
 ---
 

@@ -20,6 +20,14 @@ All notable changes to this project are documented here. The format is based on
 - Disk cache bumped to v9: the extractor fix above changes `namedSlots` content for files already in
   a v8 cache without changing their content hash, so a stale cache would otherwise keep serving the
   old, incorrect tree until the file changed.
+- `get_widget_tree`: the non-Widget filter (ISSUE-1 Layer B) now walks a constructor's declared
+  supertype chain instead of checking only its direct superclass. `index.widgets` registers a class
+  only when its direct superclass is a known Flutter base, so a widget subclassing another
+  already-indexed widget (rather than a Flutter base class directly) was previously misjudged
+  non-widget and dropped from the tree. The walk still keeps any node whose chain is ambiguous,
+  leaves the index (external/SDK base), or cycles.
+- `get_widget_tree`: the set of indexed widget names is now built once per `get_widget_tree` call and
+  looked up in O(1), instead of scanning `index.widgets.values()` on every rendered node.
 
 ## [0.2.0] - 2026-06-19
 
