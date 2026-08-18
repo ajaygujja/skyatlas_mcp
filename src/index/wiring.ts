@@ -17,10 +17,11 @@
  * demand (§9.5 lazy), so there is no cache field and no version bump.
  */
 import type { ProjectIndex } from './project-index.js';
-import type { EdgeConfidence, EdgeKind, RouteInfo } from '../model/flutter.js';
+import type { EdgeConfidence, EdgeKind } from '../model/flutter.js';
 import type { Symbol } from '../model/symbol.js';
 import { detectStack } from './stack-detect.js';
 import { CONTAINER_KINDS, resolveClass } from './resolve.js';
+import { resolveRoutes } from './route-view.js';
 
 /** Dependency hops followed from a bloc unless the caller asks for more. */
 const DEFAULT_DEPTH = 1;
@@ -92,9 +93,9 @@ export interface SourceGroup {
   via: WireRef[];
 }
 
-/** A route whose `screenWidget` names the queried screen (reachability by route). */
+/** A route that renders the queried screen (reachability by route). */
 export interface RouteRef {
-  /** fullPath, or path, or a placeholder when neither is present. */
+  /** Resolved path, or a marker for a shell / path-less / unresolved-const route. */
   label: string;
   name?: string;
   loc: Loc;
@@ -209,22 +210,22 @@ function stateOf(superclass: string): string | undefined {
   return /<\s*([A-Za-z_$][\w$]*)/.exec(superclass)?.[1];
 }
 
+/**
+ * Routes that render the named screen, with the same paths get_route_graph
+ * shows. Both read the resolved view, so a const path, a route mounted by a
+ * `...Owner.routes()` spread, and an auto_route page class all reach the screen
+ * here exactly as they do in the graph.
+ */
 function routesForScreen(index: ProjectIndex, name: string): RouteRef[] {
   const out: RouteRef[] = [];
-  const visit = (routes: RouteInfo[]): void => {
-    for (const r of routes) {
-      if (r.screenWidget === name) {
-        const ref: RouteRef = {
-          label: r.fullPath ?? r.path ?? '(no path)',
-          loc: { file: r.file, line: r.line },
-        };
-        if (r.name) ref.name = r.name;
-        out.push(ref);
-      }
-      visit(r.children);
-    }
-  };
-  visit(index.routes);
+  for (const view of resolveRoutes(index).byScreen.get(name) ?? []) {
+    const ref: RouteRef = {
+      label: view.path,
+      loc: { file: view.route.file, line: view.route.line },
+    };
+    if (view.route.name) ref.name = view.route.name;
+    out.push(ref);
+  }
   return out;
 }
 

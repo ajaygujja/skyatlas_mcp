@@ -388,7 +388,10 @@ No cached data shape changed by either fix — both operate purely at request ti
 ## 3. ISSUE-2 — `get_route_graph` and `find_state_wiring` disagree about the same route
 
 **Severity: HIGH.** Two tools, one index, contradictory answers.
-**Status: VERIFIED.**
+**Status: FIXED (2026-08-18).** Resolution is shared, and the cross-tool invariant is under test. The
+fix is wider than the sketch below: three further divergence classes were found during
+implementation, and the proposed resolver signature could not express one of them — see "Post-fix
+notes".
 
 ### Reproduce
 
@@ -505,6 +508,47 @@ lines) establishes the precedent of shared resolution helpers at that layer.
   the bug you are fixing.
 - **Do NOT** change `RouteInfo`'s three-field shape. `path` / `pathExpr` / `fullPath` mutual
   exclusivity is documented and relied on by the auto_route merge path.
+
+### Post-fix notes (verified against actual code, 2026-08-18)
+
+The const path is one of **four** ways the two tools disagreed, all with the same root cause — path
+and screen resolution happening at the consumer rather than once. All four are fixed by
+`src/index/route-view.ts`, which both tools now read.
+
+**1. Const path.** As specified. `pathExpr` set, `path` and `fullPath` empty, wiring falls back to
+`(no path)`.
+
+**2. Relative child under a const parent — the proposed signature cannot express this.**
+`routePathLabel(route, consts)` takes one route and has no parent context, so for
+`path: RoutePaths.edit` (`'edit'`) nested under `path: RoutePaths.detail` (`'/detail'`) the best it
+can return is `edit`. The correct `/detail/edit` needs the parent's *resolved* path, which exists
+only after that parent's const is resolved — the extractor cannot precompute it into `fullPath`. The
+shipped resolver therefore walks the forest top-down and carries the resolved parent path into each
+child, rather than labelling routes one at a time.
+
+**3. Routes mounted by `...Owner.routes()` were invisible to wiring.** Static route tables live in
+`index.routeTables`, not `index.routes`. Splicing them in was `get_route_graph`-local, so
+`find_state_wiring(screen=…)` reported **zero routes** for a screen the graph placed at a path.
+
+**4. Every auto_route screen was wrong.** A hand-written entry's `screenWidget` is the generated page
+class (`HomeRoute`), not the screen. `find_state_wiring` matched `screenWidget === name`, so a query
+for `HomeScreen` matched only the `*.gr.dart` entry — which carries no path — and missed the
+hand-written entry that has one. Routes are now registered under both the resolved screen and the
+page class.
+
+**Scope correction.** The spec calls step 2 "a pure extraction; behavior of `get_route_graph` must
+not change". That holds for `get_route_graph` and is enforced by a whole-output snapshot, but items
+2–4 are behavior *changes* to `find_state_wiring`, and the required cross-tool invariant test cannot
+pass without them. Extracting only `routePathLabel` would have left three of the four contradictions
+live.
+
+**No cache bump.** Resolution is display-time over data the extractor already produces, so no indexed
+shape changed and `CACHE_VERSION` stays at 9.
+
+**Verification on the evaluation repo** (5,054 files, 70,501 symbols): 209 routes carry a screen; for
+all 209 the path `find_state_wiring` reports equals the path `get_route_graph` renders, with zero
+`(no path)` results. The original repro, `find_state_wiring(screen="FormScreen")`, now returns
+`/form-screen`.
 
 ---
 
@@ -842,7 +886,7 @@ is exactly the kind of whole-repo structural fact this server exists to answer.
 | # | Item | Why this order | Risk |
 |---|---|---|---|
 | 1 | ISSUE-1 (widget filter) — **FIXED 2026-08-14** | Only issue emitting false data. Correctness before everything. | Low — additive filter, guarded by keep-on-unknown rule |
-| 2 | ISSUE-2 (route/wiring resolver) | Pure refactor with a byte-identical regression guard available. | Low |
+| 2 | ISSUE-2 (route/wiring resolver) — **FIXED 2026-08-18** | Pure refactor with a byte-identical regression guard available. | Low |
 | 3 | ISSUE-3 (output budget) | Largest practical gain; unblocks real use on large repos. | Medium — needs instrumentation first |
 | 4 | ISSUE-4 (folder depth) | One-line change plus a param. | Low |
 | 5 | 9.1 `find_references` | Biggest capability gap. Build after ISSUE-3 so it ships with budgeting built in. | High — new extractor |
@@ -867,8 +911,11 @@ compound the budget problem. Fix the economics, then add the feature that will s
       `exactOptionalPropertyTypes`, `noImplicitOverride`).
 - [ ] `pnpm doctor <large-real-repo> --cold` shows **no** new Tier-A skips (`--json` exits 1 on any).
 - [ ] `pnpm benchmark <large-real-repo> --cold` within budget (cold < 10s / 1000 files, RSS < 500MB).
+      The RSS budget does **not** hold on the evaluation repo: 5,054 files / 70,501 symbols measures
+      649MB warm, so `rssUnder500Mb` reports false there independently of any change under review.
+      Compare against a baseline run on `main` rather than treating the flag as a gate.
 - [ ] `CACHE_VERSION` in `src/index/cache.ts` bumped **if** any indexed data shape changed. Currently
-      8. Forgetting this serves stale cached data shaped for the old schema.
+      9. Forgetting this serves stale cached data shaped for the old schema.
 - [ ] `CHANGELOG.md` updated.
 - [ ] No `dart format` / mass reformat in the diff.
 
@@ -881,6 +928,7 @@ compound the budget problem. Fix the economics, then add the feature that will s
 | ISSUE-1 root cause | Read `widget-extractor.ts:577-585`, call sites `:550`, `:609`; extractor import list confirms no index access |
 | ISSUE-1 false positive is real | `get_symbol` confirms the class `extends FormPlayerEvent`; Dart source read at the cited lines |
 | ISSUE-2 root cause | Read `wiring.ts:218`, `flutter.ts:159-173`, `get-route-graph.ts:63,243-298` |
+| ISSUE-2 divergence classes 2–4 | Resolved every fixture route and printed its raw `RouteInfo`, then cross-checked both tools over the evaluation repo — 209 routed screens, 0 mismatches after the fix |
 | ISSUE-3 cap mechanism | Read `find-state-wiring.ts:29,139,188,233`; `get-project-map.ts:93` |
 | ISSUE-3 token sizes | **Estimated** from response length during evaluation — not instrumented. Re-measure before tuning. |
 | ISSUE-4 root cause | Read `get-project-map.ts:116` |

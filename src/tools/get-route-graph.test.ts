@@ -94,4 +94,11 @@ describe('get_route_graph (formatted response)', () => {
     const cyclic = text.split('\n').filter((l) => l.includes('/cyclic → CyclicScreen'));
     expect(cyclic).toHaveLength(1);
   });
+
+  // Whole-output guard. The assertions above pin individual lines; this pins the
+  // rendering as a whole, so a change to path resolution, table splicing, or the
+  // auto_route merge surfaces as a reviewable diff instead of passing silently.
+  it('renders the complete graph', async () => {
+    expect(await callRouteGraph()).toMatchSnapshot();
+  });
 });

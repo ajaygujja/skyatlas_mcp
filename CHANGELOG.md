@@ -28,6 +28,17 @@ All notable changes to this project are documented here. The format is based on
   leaves the index (external/SDK base), or cycles.
 - `get_widget_tree`: the set of indexed widget names is now built once per `get_widget_tree` call and
   looked up in O(1), instead of scanning `index.widgets.values()` on every rendered node.
+- `find_state_wiring` and `get_route_graph` no longer report different paths for the same route
+  (ISSUE-2). Path, screen and mount resolution moved into `src/index/route-view.ts`, which both tools
+  read, so a route has one path regardless of which tool is asked. Four cases previously disagreed:
+  a `path:` written as a const (`RoutePaths.home`) reported as `(no path)`; a relative const child
+  under a const parent (`/detail/edit`) with no resolvable path at all; a route mounted by a
+  `...Owner.routes()` spread reported as unreachable, since static route tables sit outside
+  `index.routes`; and every auto_route screen, because a hand-written entry names the generated page
+  class (`HomeRoute`) rather than the screen, so a lookup by screen name matched only the pathless
+  `*.gr.dart` entry. Routes are now reachable by both the resolved screen and the page class.
+- `get_route_graph` output is unchanged, guarded by a whole-output snapshot; a cross-tool test now
+  asserts both tools report the same path for every routed screen.
 
 ## [0.2.0] - 2026-06-19
 
