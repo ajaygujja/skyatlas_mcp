@@ -14,20 +14,42 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { ProjectIndex } from '../index/project-index.js';
+import type { EdgeConfidence, EdgeKind } from '../model/flutter.js';
 import {
   computeWiring,
   type Loc,
   type RepoDep,
+  type ResolvedTarget,
   type SourceGroup,
+  type SubjectInfo,
   type TargetGroup,
   type WireRef,
   type WiringFilter,
   type WiringResult,
 } from '../index/wiring.js';
-import { capLines, errorResult, textResult } from './format.js';
+import {
+  capBody,
+  errorResult,
+  FileScope,
+  textResult,
+  VERBOSITY_DESCRIPTION,
+  VERBOSITY_VALUES,
+  type BodyLimits,
+  type Verbosity,
+} from './format.js';
 
-const MAX_LINES = 250;
 const MAX_DEPTH = 8;
+
+/**
+ * Size limits for the wiring body. The character budget (~3,000 tokens) is the
+ * binding one: wiring width comes from the subject's dependency count, and one
+ * dependency line carries a member, a type, a declaration site and a call site.
+ */
+const BODY_LIMITS: BodyLimits = {
+  maxLines: 250,
+  maxChars: 12_000,
+  narrowHint: 'narrow with a different filter or verbosity="summary"',
+};
 
 export function registerFindStateWiring(
   server: McpServer,
@@ -43,7 +65,9 @@ export function registerFindStateWiring(
         'EXACTLY ONE of screen=, bloc=, or provider=. Answers "which Bloc/provider ' +
         'serves screen X", "which screens use bloc Y", "what repository does bloc Z ' +
         'depend on". Connections are syntactic name-matches (not type-resolved); an ' +
-        'unresolved or unwired subject is reported honestly, never guessed.',
+        'unresolved or unwired subject is reported honestly, never guessed. ' +
+        'For a wide subject start with verbosity="summary": it names every wired ' +
+        'bloc/provider with its site and dependency counts, then expand what matters.',
       inputSchema: {
         screen: z.string().optional().describe('Screen/widget class name, e.g. "SettingsScreen".'),
         bloc: z.string().optional().describe('Bloc/Cubit class name, e.g. "UserBloc".'),
@@ -61,9 +85,10 @@ export function registerFindStateWiring(
             'Dependency hops to follow from a bloc (default 1). Raise to cross a ' +
               'clean-arch chain bloc → usecase → repository → datasource.',
           ),
+        verbosity: z.enum(VERBOSITY_VALUES).optional().describe(VERBOSITY_DESCRIPTION),
       },
     },
-    async ({ screen, bloc, provider, depth }) => {
+    async ({ screen, bloc, provider, depth, verbosity }) => {
       let index: ProjectIndex;
       try {
         index = await getIndex();
@@ -80,7 +105,7 @@ export function registerFindStateWiring(
       }
 
       const result = computeWiring(index, filter, depth);
-      return textResult(formatWiring(result).join('\n'));
+      return textResult(formatWiring(result, verbosity ?? 'normal').join('\n'));
     },
   );
 }
@@ -97,22 +122,33 @@ function pickFilter(args: {
   return present.length === 1 ? present[0] : undefined;
 }
 
-const SYNTACTIC_FOOTER = 'Connections are syntactic name-matches, not type-resolved.';
+/**
+ * The honesty guarantee (Working Rule 8) stated once per response. Every edge
+ * carries the same `syntactic` confidence, so labelling each line individually
+ * repeats one fact hundreds of times; a line whose confidence is anything else
+ * is labelled inline (see `wireGroupLine`), which keeps the guarantee exact.
+ */
+const SYNTACTIC_FOOTER =
+  'Connections are syntactic name-matches, not type-resolved, unless a line says otherwise. ' +
+  'A location written `Name:120` is a line in the file of that declaration, named in full above.';
 
-function formatWiring(result: WiringResult): string[] {
+function formatWiring(result: WiringResult, verbosity: Verbosity): string[] {
   switch (result.filter) {
     case 'screen':
-      return formatScreen(result);
+      return formatScreen(result, verbosity);
     case 'bloc':
-      return formatBloc(result);
+      return formatBloc(result, verbosity);
     case 'provider':
-      return formatProvider(result);
+      return formatProvider(result, verbosity);
   }
 }
 
+/** Points a summary reader at the call that expands it. */
+const EXPAND_HINT = 'Pass verbosity="normal" for call sites and dependency chains.';
+
 // ── screen ──────────────────────────────────────────────────────────────────
 
-function formatScreen(r: WiringResult): string[] {
+function formatScreen(r: WiringResult, verbosity: Verbosity): string[] {
   if (!r.found) {
     return [
       `No screen/widget named '${r.query}' in the index. find_state_wiring resolves a ` +
@@ -134,33 +170,63 @@ function formatScreen(r: WiringResult): string[] {
     return lines;
   }
 
+  if (verbosity === 'summary') {
+    lines.push(`Wires ${String(r.targets.length)} bloc(s)/provider(s):`);
+    for (const group of r.targets) lines.push(`  ${targetSummary(group)}`);
+    lines.push('');
+    lines.push(EXPAND_HINT);
+    return lines;
+  }
+
   const body: string[] = [];
-  for (const group of r.targets) renderTarget(group, body);
-  lines.push(...capLines(trimTrailingBlanks(body), MAX_LINES, 'narrow with a different filter'));
+  for (const group of r.targets) renderTarget(group, r.subject, body);
+  lines.push(...capBody(trimTrailingBlanks(body), BODY_LIMITS, verbosity));
   lines.push('');
   lines.push(SYNTACTIC_FOOTER);
   return lines;
 }
 
-function renderTarget(group: TargetGroup, out: string[]): void {
-  out.push(`→ ${targetHeader(group)}`);
-  for (const ref of group.via) out.push(`    ${wireRefLine(ref)}`);
-  for (const repo of group.repos) {
-    out.push(`${'    '.repeat(repo.depth)}${depCore(repo)} (via ${loc(repo.via)}, syntactic)`);
-  }
+/** `Name (kind, 2 sites, 33 deps) — decl`: the shape of a target without its detail. */
+function targetSummary(group: TargetGroup): string {
+  const t = group.target;
+  const kind = t.kind === 'unknown' ? 'unresolved' : t.kind;
+  const facts = [`${String(group.via.length)} site(s)`];
+  if (group.repos.length > 0) facts.push(`${String(group.repos.length)} dep(s)`);
+  const where = t.decl ? ` — ${loc(t.decl)}` : '';
+  return `${t.name} (${kind}, ${facts.join(', ')})${where}`;
+}
+
+/**
+ * One bloc/provider block: the target, the call sites that reach it, then its
+ * dependency chain. The target's own file scopes the block, so its dependencies'
+ * `via` sites — all declared on the target — cost a line number each.
+ */
+function renderTarget(group: TargetGroup, subject: SubjectInfo | undefined, out: string[]): void {
+  // Two anchors: the call sites sit in the screen, the dependencies on the target.
+  const sites = new FileScope(subject?.decl?.file, subject?.name);
+  const target = group.target;
+  out.push(`→ ${targetHeader(target)}`);
+  for (const wires of groupRefs(group.via)) out.push(`    ${wireGroupLine(wires, sites)}`);
+  renderDeps(
+    group.repos,
+    anchorOf(target.name, target.decl),
+    (repo) => '    '.repeat(repo.depth),
+    out,
+  );
   out.push('');
 }
 
-function targetHeader(group: TargetGroup): string {
-  const t = group.target;
-  if (t.kind === 'unknown') return `${t.name} (unresolved — no matching declaration in the index)`;
-  const where = t.decl ? ` — ${loc(t.decl)}` : '';
-  return `${t.name} (${t.kind})${where}`;
+function targetHeader(target: ResolvedTarget): string {
+  if (target.kind === 'unknown') {
+    return `${target.name} (unresolved — no matching declaration in the index)`;
+  }
+  const where = target.decl ? ` — ${loc(target.decl)}` : '';
+  return `${target.name} (${target.kind})${where}`;
 }
 
 // ── bloc ──────────────────────────────────────────────────────────────────
 
-function formatBloc(r: WiringResult): string[] {
+function formatBloc(r: WiringResult, verbosity: Verbosity): string[] {
   if (!r.found) {
     const note = r.subject
       ? `'${r.query}' is a ${r.subject.label}${declSuffix(r.subject.decl)} — it does not extend a ` +
@@ -181,11 +247,14 @@ function formatBloc(r: WiringResult): string[] {
       `No screen wires to '${r.query}' (no BlocProvider create / context.read / BlocBuilder ` +
         `references it in the index).`,
     );
+  } else if (verbosity === 'summary') {
+    lines.push(`Wired from ${String(r.sources.length)} source(s):`);
+    for (const source of r.sources) lines.push(`  ${sourceSummary(source)}`);
   } else {
     lines.push(`Wired from ${String(r.sources.length)} source(s):`);
     const body: string[] = [];
     for (const source of r.sources) renderSource(source, body);
-    lines.push(...capLines(trimTrailingBlanks(body), MAX_LINES, 'narrow with a different filter'));
+    lines.push(...capBody(trimTrailingBlanks(body), BODY_LIMITS, verbosity));
   }
 
   lines.push('');
@@ -193,23 +262,50 @@ function formatBloc(r: WiringResult): string[] {
     lines.push(
       'Repositories: none resolved (no constructor-param/field type matches a class in the index).',
     );
+  } else if (verbosity === 'summary') {
+    lines.push(`Dependencies: ${String(r.repos.length)} — ${depRoleCounts(r.repos)}`);
+    lines.push('');
+    lines.push(EXPAND_HINT);
+    return lines;
   } else {
-    lines.push('Repositories (constructor/field deps, syntactic):');
-    for (const repo of r.repos) {
-      const indent = '  '.repeat(repo.depth - 1);
-      const bullet = repo.depth === 1 ? '- ' : '↳ ';
-      lines.push(`${indent}${bullet}${depCore(repo)} (via ${loc(repo.via)})`);
-    }
+    lines.push('Repositories (constructor/field deps):');
+    // Capped in its own right: a deep walk makes this section, not the source
+    // list, the widest part of the response.
+    const deps: string[] = [];
+    renderDeps(
+      r.repos,
+      anchorOf(r.subject?.name ?? r.query, r.subject?.decl),
+      (repo) => `${'  '.repeat(repo.depth - 1)}${repo.depth === 1 ? '- ' : '↳ '}`,
+      deps,
+    );
+    lines.push(...capBody(deps, BODY_LIMITS, verbosity));
   }
 
   lines.push('');
-  lines.push(SYNTACTIC_FOOTER);
+  lines.push(verbosity === 'summary' ? EXPAND_HINT : SYNTACTIC_FOOTER);
   return lines;
+}
+
+/** `usecase 12, repo 3`: what the dependency chain holds, without listing it. */
+function depRoleCounts(repos: RepoDep[]): string {
+  const counts = new Map<string, number>();
+  for (const repo of repos) counts.set(repo.role, (counts.get(repo.role) ?? 0) + 1);
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([role, n]) => `${role} ${String(n)}`)
+    .join(', ');
+}
+
+/** `Name (State of Screen) (3 sites) — decl`: a source without its call sites. */
+function sourceSummary(source: SourceGroup): string {
+  const companion = source.screen ? ` (State of ${source.screen})` : '';
+  const where = source.decl ? ` — ${loc(source.decl)}` : '';
+  return `${source.name}${companion} (${String(source.via.length)} site(s))${where}`;
 }
 
 // ── provider ────────────────────────────────────────────────────────────────
 
-function formatProvider(r: WiringResult): string[] {
+function formatProvider(r: WiringResult, verbosity: Verbosity): string[] {
   if (!r.found) {
     return [
       `No provider named '${r.query}' in the index. find_state_wiring resolves a Riverpod ` +
@@ -228,13 +324,17 @@ function formatProvider(r: WiringResult): string[] {
     );
   } else {
     lines.push(`Wired from ${String(r.sources.length)} source(s):`);
-    const body: string[] = [];
-    for (const source of r.sources) renderSource(source, body);
-    lines.push(...capLines(trimTrailingBlanks(body), MAX_LINES, 'narrow with a different filter'));
+    if (verbosity === 'summary') {
+      for (const source of r.sources) lines.push(`  ${sourceSummary(source)}`);
+    } else {
+      const body: string[] = [];
+      for (const source of r.sources) renderSource(source, body);
+      lines.push(...capBody(trimTrailingBlanks(body), BODY_LIMITS, verbosity));
+    }
   }
 
   lines.push('');
-  lines.push(SYNTACTIC_FOOTER);
+  lines.push(verbosity === 'summary' ? EXPAND_HINT : SYNTACTIC_FOOTER);
   return lines;
 }
 
@@ -246,23 +346,104 @@ function trimTrailingBlanks(lines: string[]): string[] {
   return lines.slice(0, end);
 }
 
+/**
+ * One source block: the class that wires into the subject, then its call sites.
+ * The source's file scopes the block, since a class reads a bloc from its own
+ * body — the common case collapses to a list of line numbers.
+ */
 function renderSource(source: SourceGroup, out: string[]): void {
   const companion = source.screen ? ` (State of ${source.screen})` : '';
   const where = source.decl ? ` — ${loc(source.decl)}` : '';
   out.push(`← ${source.name}${companion}${where}`);
-  for (const ref of source.via) out.push(`    ${wireRefLine(ref)}`);
+  const scope = new FileScope(source.decl?.file, source.name);
+  for (const wires of groupRefs(source.via)) out.push(`    ${wireGroupLine(wires, scope)}`);
   out.push('');
 }
 
-function wireRefLine(ref: WireRef): string {
-  return `${ref.kind} · ${loc(ref.callSite)} (${ref.confidence})`;
+/** Call sites of one edge kind in one file, at the same confidence. */
+interface WireGroup {
+  kind: EdgeKind;
+  file: string;
+  confidence: EdgeConfidence;
+  lines: number[];
 }
 
-/** `<role> <member>: <Type>[ → <Impl> loc] — <decl>`; the impl note appears when an
- * interface dependency was followed into its concrete class to continue the chain. */
-function depCore(repo: RepoDep): string {
-  const impl = repo.impl ? ` → ${repo.impl.typeName} ${loc(repo.impl.decl)}` : '';
-  return `${repo.role} ${repo.member}: ${repo.typeName}${impl} — ${loc(repo.decl)}`;
+/**
+ * Collapses call sites that differ only by line into one group. A widget that
+ * reads the same bloc from fourteen places in one file states one fact, and
+ * printing it fourteen times costs fourteen paths to say it. Groups keep the
+ * order the index emitted them in, with line numbers ascending inside a group,
+ * so the rendering is deterministic across runs.
+ */
+function groupRefs(refs: WireRef[]): WireGroup[] {
+  const groups = new Map<string, WireGroup>();
+  for (const ref of refs) {
+    const key = `${ref.kind}|${ref.callSite.file}|${ref.confidence}`;
+    const group = groups.get(key);
+    if (group) group.lines.push(ref.callSite.line);
+    else {
+      groups.set(key, {
+        kind: ref.kind,
+        file: ref.callSite.file,
+        confidence: ref.confidence,
+        lines: [ref.callSite.line],
+      });
+    }
+  }
+  for (const group of groups.values()) group.lines.sort((a, b) => a - b);
+  return [...groups.values()];
+}
+
+/**
+ * `kind · file:12,48,90  (3 sites)`. The site count is stated because it is the
+ * fact a caller acts on; `SYNTACTIC_FOOTER` covers the confidence, so only a
+ * confidence other than syntactic is labelled here.
+ */
+function wireGroupLine(group: WireGroup, scope: FileScope): string {
+  const first = group.lines[0] ?? 0;
+  const rest = group.lines.slice(1);
+  const sites =
+    rest.length > 0 ? `,${rest.map(String).join(',')}  (${String(group.lines.length)} sites)` : '';
+  const confidence = group.confidence === 'syntactic' ? '' : ` (${group.confidence})`;
+  return `${group.kind} · ${scope.ref(group.file, first)}${sites}${confidence}`;
+}
+
+/**
+ * Renders a dependency chain, indented by `indentFor`. Each hop's `via` site is
+ * declared on the class the previous hop resolved to — the queried bloc for hop
+ * 1 — so the chain is rendered against a per-hop file scope and a `via` in the
+ * declaring class costs a line number rather than a second path.
+ */
+function renderDeps(
+  repos: RepoDep[],
+  owner: FileScope,
+  indentFor: (repo: RepoDep) => string,
+  out: string[],
+): void {
+  const hops = new Map<number, FileScope>([[1, owner]]);
+  for (const repo of repos) {
+    const scope = hops.get(repo.depth) ?? owner;
+    out.push(`${indentFor(repo)}${depCore(repo, scope)}`);
+    // An interface followed into its implementor declares the next hop's members.
+    const next = repo.impl ?? repo;
+    const nextName = repo.impl ? repo.impl.typeName : repo.typeName;
+    hops.set(repo.depth + 1, new FileScope(next.decl.file, nextName));
+  }
+}
+
+/** Anchor for locations inside a named declaration's file. */
+function anchorOf(name: string, decl: Loc | undefined): FileScope {
+  return new FileScope(decl?.file, name);
+}
+
+/** `<role> <member>: <Type>[ → <Impl> loc] — <decl> (via <site>)`; the impl note appears
+ * when an interface dependency was followed into its concrete class to continue the chain. */
+function depCore(repo: RepoDep, scope: FileScope): string {
+  const impl = repo.impl
+    ? ` → ${repo.impl.typeName} ${scope.ref(repo.impl.decl.file, repo.impl.decl.line)}`
+    : '';
+  const decl = scope.ref(repo.decl.file, repo.decl.line);
+  return `${repo.role} ${repo.member}: ${repo.typeName}${impl} — ${decl} (via ${scope.ref(repo.via.file, repo.via.line)})`;
 }
 
 /** §6 rule 5: explain absence and point at the other filter via the detected stack. */

@@ -17,10 +17,11 @@
  * demand (§9.5 lazy), so there is no cache field and no version bump.
  */
 import type { ProjectIndex } from './project-index.js';
-import type { EdgeConfidence, EdgeKind, RouteInfo } from '../model/flutter.js';
+import type { EdgeConfidence, EdgeKind } from '../model/flutter.js';
 import type { Symbol } from '../model/symbol.js';
 import { detectStack } from './stack-detect.js';
 import { CONTAINER_KINDS, resolveClass } from './resolve.js';
+import { resolveRoutes } from './route-view.js';
 
 /** Dependency hops followed from a bloc unless the caller asks for more. */
 const DEFAULT_DEPTH = 1;
@@ -92,9 +93,9 @@ export interface SourceGroup {
   via: WireRef[];
 }
 
-/** A route whose `screenWidget` names the queried screen (reachability by route). */
+/** A route that renders the queried screen (reachability by route). */
 export interface RouteRef {
-  /** fullPath, or path, or a placeholder when neither is present. */
+  /** Resolved path, or a marker for a shell / path-less / unresolved-const route. */
   label: string;
   name?: string;
   loc: Loc;
@@ -209,22 +210,22 @@ function stateOf(superclass: string): string | undefined {
   return /<\s*([A-Za-z_$][\w$]*)/.exec(superclass)?.[1];
 }
 
+/**
+ * Routes that render the named screen, with the same paths get_route_graph
+ * shows. Both read the resolved view, so a const path, a route mounted by a
+ * `...Owner.routes()` spread, and an auto_route page class all reach the screen
+ * here exactly as they do in the graph.
+ */
 function routesForScreen(index: ProjectIndex, name: string): RouteRef[] {
   const out: RouteRef[] = [];
-  const visit = (routes: RouteInfo[]): void => {
-    for (const r of routes) {
-      if (r.screenWidget === name) {
-        const ref: RouteRef = {
-          label: r.fullPath ?? r.path ?? '(no path)',
-          loc: { file: r.file, line: r.line },
-        };
-        if (r.name) ref.name = r.name;
-        out.push(ref);
-      }
-      visit(r.children);
-    }
-  };
-  visit(index.routes);
+  for (const view of resolveRoutes(index).byScreen.get(name) ?? []) {
+    const ref: RouteRef = {
+      label: view.path,
+      loc: { file: view.route.file, line: view.route.line },
+    };
+    if (view.route.name) ref.name = view.route.name;
+    out.push(ref);
+  }
   return out;
 }
 
@@ -385,6 +386,10 @@ function resolveProvider(index: ProjectIndex, name: string): ResolvedTarget | un
 function repoDepsOf(index: ProjectIndex, blocSymbolId: string, maxDepth: number): RepoDep[] {
   const out: RepoDep[] = [];
   const seenClasses = new Set<string>([blocSymbolId]);
+  // Built at most once per walk, and only if an interface dependency is reached:
+  // resolving implementors by scanning every symbol per dependency is O(deps ×
+  // symbols), which on a 70k-symbol repo dominates the whole query.
+  let implementors: Map<string, Symbol[]> | undefined;
 
   const walk = (symbolId: string, depth: number): void => {
     if (depth > maxDepth) return;
@@ -400,8 +405,11 @@ function repoDepsOf(index: ProjectIndex, blocSymbolId: string, maxDepth: number)
       seenMembers.add(member);
       seenClasses.add(cls.id);
 
-      const impl =
-        depth < maxDepth ? implementorOf(index, cls.name, cls.id, seenClasses) : undefined;
+      let impl: Symbol | undefined;
+      if (depth < maxDepth) {
+        implementors ??= implementorsByInterface(index);
+        impl = implementorOf(implementors, cls.name, cls.id, seenClasses);
+      }
       const dep: RepoDep = {
         member,
         typeName,
@@ -447,23 +455,43 @@ function depRole(typeName: string): DepRole {
 }
 
 /**
+ * Container classes grouped by each interface name they declare `implements`
+ * for, ordered by symbol id so a pick among several is deterministic.
+ *
+ * Derived on demand rather than stored on the index, matching
+ * `ProjectIndex.stringConsts()`: an aggregate kept across edits is an aggregate
+ * that can disagree with the files it came from.
+ */
+function implementorsByInterface(index: ProjectIndex): Map<string, Symbol[]> {
+  const out = new Map<string, Symbol[]>();
+  for (const sym of index.symbolsById.values()) {
+    if (!CONTAINER_KINDS.has(sym.kind) || !sym.implementsTypes) continue;
+    for (const type of sym.implementsTypes) {
+      const bucket = out.get(type.name);
+      if (bucket) bucket.push(sym);
+      else out.set(type.name, [sym]);
+    }
+  }
+  for (const bucket of out.values()) bucket.sort((a, b) => a.id.localeCompare(b.id));
+  return out;
+}
+
+/**
  * The concrete container class declaring `implements <name>` — the implementor
  * behind an interface. Picked deterministically (lowest symbol id) when several
  * implement it; an already-visited class is skipped so the cycle guard holds.
  */
 function implementorOf(
-  index: ProjectIndex,
+  implementors: Map<string, Symbol[]>,
   name: string,
   interfaceId: string,
   seen: Set<string>,
 ): Symbol | undefined {
-  let pick: Symbol | undefined;
-  for (const sym of index.symbolsById.values()) {
-    if (sym.id === interfaceId || seen.has(sym.id) || !CONTAINER_KINDS.has(sym.kind)) continue;
-    if (!sym.implementsTypes?.some((t) => t.name === name)) continue;
-    if (!pick || sym.id.localeCompare(pick.id) < 0) pick = sym;
+  for (const sym of implementors.get(name) ?? []) {
+    if (sym.id === interfaceId || seen.has(sym.id)) continue;
+    return sym;
   }
-  return pick;
+  return undefined;
 }
 
 /** `Future<List<int>>` → `Future`; `UserRepository?` → `UserRepository`. */

@@ -14,10 +14,17 @@ import type { ProjectIndex } from '../index/project-index.js';
 import { CONTAINER_KINDS, resolveClass } from '../index/resolve.js';
 import type { WidgetInfo, WidgetNode } from '../model/flutter.js';
 import type { Symbol } from '../model/symbol.js';
-import { capLines, errorResult, textResult } from './format.js';
+import { capChars, capLines, errorResult, textResult } from './format.js';
 
 const MAX_LINES = 200;
 const DEFAULT_DEPTH = 8;
+
+/**
+ * Character budget for the tree body (~2,000 tokens). Node lines are narrow, so
+ * the line cap is the binding one for a single build tree; the character budget
+ * bounds a `follow=true` walk, whose width comes from the widgets it inlines.
+ */
+const MAX_BODY_CHARS = 8_000;
 
 export function registerGetWidgetTree(
   server: McpServer,
@@ -34,7 +41,8 @@ export function registerGetWidgetTree(
         'in one call instead of reading the build method. Tree is syntactic — ' +
         'dynamically built children (loops/conditionals) are not unrolled. ' +
         'Set follow=true to inline-expand child widget classes and cross ' +
-        'StatefulWidget→State, so a shell widget resolves to its real tree in one call.',
+        'StatefulWidget→State, so a shell widget resolves to its real tree in one call; ' +
+        'lower depth= for a cheaper overview of a large tree.',
       inputSchema: {
         widget: z.string().describe('Widget class name, e.g. "HomeScreen" or "ProfileView".'),
         depth: z
@@ -132,7 +140,11 @@ const MAX_SUPERTYPE_CHAIN_DEPTH = 20;
  * cycle stops the walk and keeps the node: unknown is never treated as
  * non-widget.
  */
-function isKnownNonWidget(index: ProjectIndex, widgetNames: Set<string>, widgetName: string): boolean {
+function isKnownNonWidget(
+  index: ProjectIndex,
+  widgetNames: Set<string>,
+  widgetName: string,
+): boolean {
   // Named constructors: "ListView.builder" → base type "ListView".
   const base = widgetName.split('.')[0];
   if (!base) return false;
@@ -167,6 +179,14 @@ interface RenderContext {
   visited: Set<string>;
   /** Names of every indexed Widget class, built once per request (see widgetNameSet). */
   widgetNames: Set<string>;
+  /**
+   * Widgets whose subtree this response has already inlined, response-scoped
+   * rather than path-scoped like `visited`: a widget reached down two different
+   * branches is the same widget with the same static tree, and re-inlining it
+   * repeats the whole subtree. Maps symbolId to the class name printed with the
+   * first expansion, which is where a caller reads the subtree.
+   */
+  expanded: Map<string, string>;
 }
 
 function formatWidget(
@@ -205,13 +225,19 @@ function formatWidget(
     follow,
     visited: new Set([info.symbolId, from.symbolId]),
     widgetNames: widgetNameSet(index),
+    expanded: new Map(),
   };
   for (const root of roots) {
     renderNode(root, undefined, 0, maxDepth, body, ctx);
   }
-  lines.push(...capLines(body, MAX_LINES, 'increase specificity or lower depth='));
+  const narrowHint = 'increase specificity or lower depth=';
+  lines.push(...capChars(capLines(body, MAX_LINES, narrowHint), MAX_BODY_CHARS, narrowHint));
   lines.push('');
-  lines.push('Tree is syntactic: constructor calls as written, not runtime render.');
+  lines.push(
+    'Tree is syntactic: constructor calls as written, not runtime render. ' +
+      'A node line `:120` is a line in the file of the nearest `follows` tag above it, ' +
+      "else in this widget's own file.",
+  );
   return lines;
 }
 
@@ -253,8 +279,16 @@ function renderNode(
   if (ctx.follow && staticChildren.length === 0) {
     const target = followTarget(ctx.index, node.widget);
     if (target && !ctx.visited.has(target.from.symbolId)) {
-      followed = target;
-      tags.push(`follows ${target.from.name} — ${target.from.file}:${String(target.from.line)}`);
+      const alreadyAt = ctx.expanded.get(target.from.symbolId);
+      if (alreadyAt === undefined) {
+        followed = target;
+        ctx.expanded.set(target.from.symbolId, target.from.name);
+        tags.push(`follows ${target.from.name} — ${target.from.file}:${String(target.from.line)}`);
+      } else {
+        // The subtree stands elsewhere in this response; the node itself is a real
+        // call site and stays, so no build-tree fact is lost by not repeating it.
+        tags.push(`${alreadyAt} expanded above — ${target.from.file}:${String(target.from.line)}`);
+      }
     }
   }
 

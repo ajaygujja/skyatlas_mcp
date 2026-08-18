@@ -388,7 +388,10 @@ No cached data shape changed by either fix — both operate purely at request ti
 ## 3. ISSUE-2 — `get_route_graph` and `find_state_wiring` disagree about the same route
 
 **Severity: HIGH.** Two tools, one index, contradictory answers.
-**Status: VERIFIED.**
+**Status: FIXED (2026-08-18).** Resolution is shared, and the cross-tool invariant is under test. The
+fix is wider than the sketch below: three further divergence classes were found during
+implementation, and the proposed resolver signature could not express one of them — see "Post-fix
+notes".
 
 ### Reproduce
 
@@ -505,6 +508,47 @@ lines) establishes the precedent of shared resolution helpers at that layer.
   the bug you are fixing.
 - **Do NOT** change `RouteInfo`'s three-field shape. `path` / `pathExpr` / `fullPath` mutual
   exclusivity is documented and relied on by the auto_route merge path.
+
+### Post-fix notes (verified against actual code, 2026-08-18)
+
+The const path is one of **four** ways the two tools disagreed, all with the same root cause — path
+and screen resolution happening at the consumer rather than once. All four are fixed by
+`src/index/route-view.ts`, which both tools now read.
+
+**1. Const path.** As specified. `pathExpr` set, `path` and `fullPath` empty, wiring falls back to
+`(no path)`.
+
+**2. Relative child under a const parent — the proposed signature cannot express this.**
+`routePathLabel(route, consts)` takes one route and has no parent context, so for
+`path: RoutePaths.edit` (`'edit'`) nested under `path: RoutePaths.detail` (`'/detail'`) the best it
+can return is `edit`. The correct `/detail/edit` needs the parent's *resolved* path, which exists
+only after that parent's const is resolved — the extractor cannot precompute it into `fullPath`. The
+shipped resolver therefore walks the forest top-down and carries the resolved parent path into each
+child, rather than labelling routes one at a time.
+
+**3. Routes mounted by `...Owner.routes()` were invisible to wiring.** Static route tables live in
+`index.routeTables`, not `index.routes`. Splicing them in was `get_route_graph`-local, so
+`find_state_wiring(screen=…)` reported **zero routes** for a screen the graph placed at a path.
+
+**4. Every auto_route screen was wrong.** A hand-written entry's `screenWidget` is the generated page
+class (`HomeRoute`), not the screen. `find_state_wiring` matched `screenWidget === name`, so a query
+for `HomeScreen` matched only the `*.gr.dart` entry — which carries no path — and missed the
+hand-written entry that has one. Routes are now registered under both the resolved screen and the
+page class.
+
+**Scope correction.** The spec calls step 2 "a pure extraction; behavior of `get_route_graph` must
+not change". That holds for `get_route_graph` and is enforced by a whole-output snapshot, but items
+2–4 are behavior *changes* to `find_state_wiring`, and the required cross-tool invariant test cannot
+pass without them. Extracting only `routePathLabel` would have left three of the four contradictions
+live.
+
+**No cache bump.** Resolution is display-time over data the extractor already produces, so no indexed
+shape changed and `CACHE_VERSION` stays at 9.
+
+**Verification on the evaluation repo** (5,054 files, 70,501 symbols): 209 routes carry a screen; for
+all 209 the path `find_state_wiring` reports equals the path `get_route_graph` renders, with zero
+`(no path)` results. The original repro, `find_state_wiring(screen="FormScreen")`, now returns
+`/form-screen`.
 
 ---
 
@@ -625,6 +669,102 @@ well — e.g. `get_project_map` says "Call this FIRST in a session").
 - **Do NOT** remove the `(syntactic)` guarantee. Move it to the header; do not delete it.
 - **Do NOT** drop `file:line` references to save tokens. They are the highest-value tokens in the
   response — they are what makes the answer actionable.
+
+### Post-fix notes (instrumented against the evaluation repo, 2026-08-18)
+
+**Instrumented first, as this section demanded.** `scripts/response-probe.ts` drives all six tools
+over an in-memory MCP transport and records characters, lines, longest line and latency per call;
+`benchmark.ts` writes them to `benchmarks/history.jsonl`. Calls are derived from the index (widest
+bloc by constructor arity, widget creating the most blocs) so the probe runs against any workspace and
+two runs over one repo compare. Characters are the recorded unit — exact and tokenizer-independent;
+tokens are reported as `chars / 4`.
+
+**Measured, before any change** (5,054 files / 70,501 symbols). The estimates in this section were
+close for wiring and 33% low for the route graph:
+
+| Call | est. tokens | measured | lines |
+|---|---|---|---|
+| `get_route_graph()` | ~5,000 | **6,674** | 224 |
+| `find_state_wiring(screen="FormScreen")` | ~4,500 | 4,366 | 83 |
+| `find_state_wiring(bloc="FormPlayerBloc")` | ~4,000 | 3,573 | 100 |
+
+The core claim holds: **no line cap ever fired.** The widest response was 224 lines against a cap of
+250, at 119–210 characters per line.
+
+**Three corrections to the diagnosis.**
+
+1. **The dominant cost is repeated file paths, which this section does not mention.** 52% of the route
+   graph's characters were `.dart` paths — 219 references to **8 distinct files**, and only 8 file
+   transitions in render order. Wiring responses were 65–68% path characters, of which the `(via …)`
+   clause alone was 21–35%: a bloc's dependency list repeats the bloc's own path once per dependency.
+   Factoring that out is aggregation, not truncation, so it is the fix this section's "Do NOT" rules
+   ask for, and it is worth more than (a), (b) and (c) combined.
+2. **Fix (b) — "de-duplicate dependency expansion" — is a no-op on real data.**
+   `find_state_wiring(screen="FormScreen")` expands 8 *distinct* blocs; no bloc appears twice in one
+   response, so there is nothing to reference back to. Only 4 dependency *types* recur, under
+   different members of different blocs, and collapsing those would drop facts. The real
+   repeated-expansion problem is in a tool this section does not cover: `get_widget_tree(follow=true)`
+   was **65% duplicate lines**, because a widget reached down several branches (a `BlocConsumer` with
+   two builders, six times over) had its whole subtree inlined again each time.
+3. **The `(syntactic)` label carries no information at all.** `EdgeConfidence` is
+   `'exact' | 'syntactic'` and **nothing in the codebase emits `'exact'`** — all 3,363 edges in the
+   evaluation repo are syntactic. The footer already states the guarantee, so the label moved there;
+   a non-syntactic confidence is still labelled inline, which keeps the guarantee exact rather than
+   merely stated.
+
+**What shipped**, in order of measured value: character-unit budgets alongside the line caps
+(`capChars`, `capBody`); location compaction (`FileScope`) in two forms — unlabelled `:120` where a
+block's lines carry one location each, and labelled `UserBloc:120` where a line carries two, because
+a bare reference on a line that also names another file is ambiguous, and an anchor that names its own
+referent needs no reading rule; call-site aggregation; expand-once for followed widgets; `verbosity`.
+
+**Measured after** (same repo, same calls):
+
+| Call | before | after | change |
+|---|---|---|---|
+| `get_route_graph()` | 6,674 | **3,346** | −50% |
+| `find_state_wiring(bloc=…, depth=3)` | 5,328 | **3,591** | −33% |
+| `find_state_wiring(screen="FormScreen")` | 4,366 | **3,068** | −30% |
+| `find_symbol(query="FormPlayer")` | 3,776 | **2,358** | −38% |
+| `find_state_wiring(bloc="FormPlayerBloc")` | 3,573 | **2,173** | −39% |
+| `get_widget_tree(widget="FormScreen", follow=true)` | 3,168 | **1,859** | −41% |
+| All eight probed calls | 30,015 | **19,525** | −35% |
+
+`verbosity="summary"` on the same repo: route graph 358 tokens, screen wiring 417, bloc wiring 520.
+
+**Two deviations from this section, both deliberate.**
+
+- **`normal < 2,000 tokens` is not attainable on this repo and is not asserted there.** 215 routes at
+  one line each is ~11,000 characters of irreducible fact, and a screen wiring 8 blocs across 53
+  dependencies is ~2,700 tokens of it. Compaction cannot go below the facts; only scoping can, and
+  scope filters on `get_route_graph` are `AI_EFFICIENCY_ROADMAP.md` item #1, not this issue. The
+  budget assertions therefore run against fixtures (`summary` < 500, `normal` < 2,000 tokens), and
+  real-repo sizes are recorded per run in `benchmarks/history.jsonl`, where §9.3's 2× rule applies.
+- **`verbosity` was not added to `get_widget_tree`.** `depth=` is already that control, and the tool
+  measures 1,859 tokens after expand-once; a second knob for the same purpose is dead weight. Its
+  description now points at `depth=` instead.
+
+**Also fixed, found while instrumenting** (both are the O(N × M) shape as the ISSUE-1 follow-up):
+
+- `find_state_wiring(depth≥2)` spent **213 ms** resolving implementors by scanning all 70,501 symbols
+  once per dependency. An implementors-by-interface map, built at most once per walk and only when an
+  interface is reached, brings it to **10 ms**. Derived on demand rather than stored on the index,
+  matching `ProjectIndex.stringConsts()` — an aggregate kept across edits can disagree with the files
+  it came from.
+- `find_symbol` printed constructor signatures up to **1,086 characters** long (33 injected
+  parameters). It now shows the first four with an explicit `… +N more`; `get_symbol` stays the tool
+  for a full declaration.
+
+**No cache bump.** Every change is request-time formatting or a derived lookup; no indexed shape
+changed, so `CACHE_VERSION` stays at 9.
+
+**Verification.** `pnpm build`, `pnpm lint`, `pnpm test` (190 tests, 17 files) clean; `pnpm doctor`
+on the evaluation repo reports 100% clean coverage with zero Tier-A skips; `pnpm benchmark` records
+both budgets true (`rssUnder500Mb` measured 458 MB warm in this run — the flag reported false at
+649 MB during the earlier evaluation, so treat the recorded number, not the flag, as the baseline).
+New tests: `src/tools/response-budget.test.ts` asserts the per-verbosity budgets and that every
+`file:line` the index resolves is recoverable from the compacted response, plus aggregation and
+expand-once cases in the two tools' own suites.
 
 ---
 
@@ -842,8 +982,8 @@ is exactly the kind of whole-repo structural fact this server exists to answer.
 | # | Item | Why this order | Risk |
 |---|---|---|---|
 | 1 | ISSUE-1 (widget filter) — **FIXED 2026-08-14** | Only issue emitting false data. Correctness before everything. | Low — additive filter, guarded by keep-on-unknown rule |
-| 2 | ISSUE-2 (route/wiring resolver) | Pure refactor with a byte-identical regression guard available. | Low |
-| 3 | ISSUE-3 (output budget) | Largest practical gain; unblocks real use on large repos. | Medium — needs instrumentation first |
+| 2 | ISSUE-2 (route/wiring resolver) — **FIXED 2026-08-18** | Pure refactor with a byte-identical regression guard available. | Low |
+| 3 | ISSUE-3 (output budget) — **FIXED 2026-08-18** | Largest practical gain; unblocks real use on large repos. | Medium — needs instrumentation first |
 | 4 | ISSUE-4 (folder depth) | One-line change plus a param. | Low |
 | 5 | 9.1 `find_references` | Biggest capability gap. Build after ISSUE-3 so it ships with budgeting built in. | High — new extractor |
 | 6 | 9.2 `get_di_graph` | Differentiator; data already extracted. | Medium |
@@ -867,8 +1007,11 @@ compound the budget problem. Fix the economics, then add the feature that will s
       `exactOptionalPropertyTypes`, `noImplicitOverride`).
 - [ ] `pnpm doctor <large-real-repo> --cold` shows **no** new Tier-A skips (`--json` exits 1 on any).
 - [ ] `pnpm benchmark <large-real-repo> --cold` within budget (cold < 10s / 1000 files, RSS < 500MB).
+      The RSS budget does **not** hold on the evaluation repo: 5,054 files / 70,501 symbols measures
+      649MB warm, so `rssUnder500Mb` reports false there independently of any change under review.
+      Compare against a baseline run on `main` rather than treating the flag as a gate.
 - [ ] `CACHE_VERSION` in `src/index/cache.ts` bumped **if** any indexed data shape changed. Currently
-      8. Forgetting this serves stale cached data shaped for the old schema.
+      9. Forgetting this serves stale cached data shaped for the old schema.
 - [ ] `CHANGELOG.md` updated.
 - [ ] No `dart format` / mass reformat in the diff.
 
@@ -881,8 +1024,9 @@ compound the budget problem. Fix the economics, then add the feature that will s
 | ISSUE-1 root cause | Read `widget-extractor.ts:577-585`, call sites `:550`, `:609`; extractor import list confirms no index access |
 | ISSUE-1 false positive is real | `get_symbol` confirms the class `extends FormPlayerEvent`; Dart source read at the cited lines |
 | ISSUE-2 root cause | Read `wiring.ts:218`, `flutter.ts:159-173`, `get-route-graph.ts:63,243-298` |
+| ISSUE-2 divergence classes 2–4 | Resolved every fixture route and printed its raw `RouteInfo`, then cross-checked both tools over the evaluation repo — 209 routed screens, 0 mismatches after the fix |
 | ISSUE-3 cap mechanism | Read `find-state-wiring.ts:29,139,188,233`; `get-project-map.ts:93` |
-| ISSUE-3 token sizes | **Estimated** from response length during evaluation — not instrumented. Re-measure before tuning. |
+| ISSUE-3 token sizes | **Instrumented** 2026-08-18 via `scripts/response-probe.ts`; recorded in `benchmarks/history.jsonl`. See §4 post-fix notes for measured values and three corrections to the diagnosis. |
 | ISSUE-4 root cause | Read `get-project-map.ts:116` |
 | ISSUE-5 scope (3/215) | Counted from `get_route_graph` output; failing patterns read in the target repo's source |
 | ISSUE-6, 7 | Observed in tool output / read in `server.ts` |

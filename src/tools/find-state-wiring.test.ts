@@ -23,6 +23,32 @@ describe('find_state_wiring (formatted response)', () => {
     return (result.content as { type: string; text: string }[])[0]?.text ?? '';
   }
 
+  async function callRouteGraph(): Promise<string> {
+    const result = await client.callTool({ name: 'get_route_graph', arguments: {} });
+    return (result.content as { type: string; text: string }[])[0]?.text ?? '';
+  }
+
+  /** The `path → Screen` pairs a route-graph rendering asserts, by screen name. */
+  function graphPathsByScreen(graph: string): Map<string, string[]> {
+    const out = new Map<string, string[]>();
+    for (const line of graph.split('\n')) {
+      const m = /^\s*- (.+?) → ([A-Za-z_$][\w$]*)(?: \(|\s+—)/.exec(line);
+      if (!m?.[1] || !m[2]) continue;
+      const bucket = out.get(m[2]);
+      if (bucket) bucket.push(m[1]);
+      else out.set(m[2], [m[1]]);
+    }
+    return out;
+  }
+
+  /** The paths a wiring rendering reports as reaching the queried screen. */
+  function wiringPaths(text: string): string[] {
+    return text
+      .split('\n')
+      .map((l) => /^Reachable via route: (.+?)(?: \([^()]*\))? — /.exec(l)?.[1])
+      .filter((p): p is string => p !== undefined);
+  }
+
   beforeAll(async () => {
     root = await mkdtemp(join(tmpdir(), 'skyatlas-wiring-'));
     await cp(WIRING_FIXTURES, root, { recursive: true });
@@ -42,17 +68,18 @@ describe('find_state_wiring (formatted response)', () => {
     expect(text).toContain("# State wiring: screen 'CounterScreen' — counter_screen.dart:8");
     expect(text).toContain('stateless screen');
     // Cross-referenced from the go_router route that builds it.
-    expect(text).toContain('Reachable via route: /counter (counter) — router.dart:8');
+    expect(text).toContain('Reachable via route: /counter (counter) — router.dart:29');
     // The cubit, resolved by name-match to its cross-file declaration.
     expect(text).toContain('→ CounterCubit (cubit) — counter_cubit.dart:5');
     // Both the create and the read edges, grouped under the one target.
-    expect(text).toContain('createsBloc · counter_screen.dart:13 (syntactic)');
-    expect(text).toContain('readsBloc · counter_screen.dart:15 (syntactic)');
+    // Call sites anchor on the screen the response already located in full.
+    expect(text).toContain('createsBloc · CounterScreen:13');
+    expect(text).toContain('readsBloc · CounterScreen:15');
     // The repository the cubit takes in its constructor field — the chain's leaf.
     expect(text).toContain(
-      'repo _repo: CounterRepository — repositories.dart:3 (via counter_cubit.dart:8, syntactic)',
+      'repo _repo: CounterRepository — repositories.dart:3 (via CounterCubit:8)',
     );
-    expect(text).toContain('Connections are syntactic name-matches, not type-resolved.');
+    expect(text).toContain('Connections are syntactic name-matches, not type-resolved');
   });
 
   it('resolves a duplicate-named dependency to the file the caller imports', async () => {
@@ -61,7 +88,7 @@ describe('find_state_wiring (formatted response)', () => {
     // and repositories.dart; the cubit imports the latter, so the chain follows
     // the import rather than the lexicographically-first declaration.
     expect(text).toContain(
-      'repo _repo: CounterRepository — repositories.dart:3 (via counter_cubit.dart:8, syntactic)',
+      'repo _repo: CounterRepository — repositories.dart:3 (via CounterCubit:8)',
     );
     expect(text).not.toContain('aux_repository.dart');
   });
@@ -70,9 +97,9 @@ describe('find_state_wiring (formatted response)', () => {
     const text = await callWiring({ screen: 'ProfileScreen' });
     // The read happens in _ProfileScreenState; wiring still attributes it to the screen.
     expect(text).toContain('→ ProfileBloc (bloc) — profile_bloc.dart:9');
-    expect(text).toContain('readsBloc · profile_screen.dart:19 (syntactic)');
+    expect(text).toContain('readsBloc · ProfileScreen:19');
     expect(text).toContain(
-      'repo _repo: ProfileRepository — repositories.dart:7 (via profile_bloc.dart:12, syntactic)',
+      'repo _repo: ProfileRepository — repositories.dart:7 (via ProfileBloc:12)',
     );
   });
 
@@ -80,13 +107,13 @@ describe('find_state_wiring (formatted response)', () => {
     const text = await callWiring({ screen: 'SettingsScreen' });
     expect(text).toContain("# State wiring: screen 'SettingsScreen' — settings_screen.dart:7");
     expect(text).toContain('→ settingsProvider (provider) — providers.dart:3');
-    expect(text).toContain('watchesProvider · settings_screen.dart:12 (syntactic)');
+    expect(text).toContain('watchesProvider · SettingsScreen:12');
   });
 
   it('reports an unresolved bloc target honestly, never invents it', async () => {
     const text = await callWiring({ screen: 'ExternalScreen' });
     expect(text).toContain('→ ExternalBloc (unresolved — no matching declaration in the index)');
-    expect(text).toContain('readsBloc · external_screen.dart:11 (syntactic)');
+    expect(text).toContain('readsBloc · ExternalScreen:11');
   });
 
   it('explains absence and points at the detected stack (§6 rule 5)', async () => {
@@ -100,13 +127,26 @@ describe('find_state_wiring (formatted response)', () => {
   it('reverses the view for a bloc filter: sources in, repositories out', async () => {
     const text = await callWiring({ bloc: 'CounterCubit' });
     expect(text).toContain("# State wiring: cubit 'CounterCubit' — counter_cubit.dart:5");
-    expect(text).toContain('Wired from 1 source(s):');
+    expect(text).toContain('Wired from 2 source(s):');
     expect(text).toContain('← CounterScreen — counter_screen.dart:8');
-    expect(text).toContain('createsBloc · counter_screen.dart:13 (syntactic)');
-    expect(text).toContain('Repositories (constructor/field deps, syntactic):');
+    expect(text).toContain('createsBloc · CounterScreen:13');
+    expect(text).toContain('Repositories (constructor/field deps):');
     expect(text).toContain(
-      '- repo _repo: CounterRepository — repositories.dart:3 (via counter_cubit.dart:8)',
+      '- repo _repo: CounterRepository — repositories.dart:3 (via CounterCubit:8)',
     );
+  });
+
+  it('collapses call sites that differ only by line into one aggregated line', async () => {
+    const screen = await callWiring({ screen: 'RepeatReadScreen' });
+    // Three reads of one cubit in one file are one fact with three sites; every
+    // line number stays recoverable from the aggregated line.
+    expect(screen).toContain('readsBloc · RepeatReadScreen:13,14,15  (3 sites)');
+    expect(screen).not.toMatch(/readsBloc · RepeatReadScreen:14$/m);
+
+    // The reverse view aggregates the same sites against its source.
+    const bloc = await callWiring({ bloc: 'CounterCubit' });
+    expect(bloc).toContain('← RepeatReadScreen — repeat_read_screen.dart:8');
+    expect(bloc).toContain('readsBloc · RepeatReadScreen:13,14,15  (3 sites)');
   });
 
   it('flags a State<Screen> companion source on the bloc reverse view', async () => {
@@ -123,7 +163,7 @@ describe('find_state_wiring (formatted response)', () => {
     );
     expect(text).toContain('Wired from 1 source(s):');
     expect(text).toContain('← SettingsScreen — settings_screen.dart:7');
-    expect(text).toContain('watchesProvider · settings_screen.dart:12 (syntactic)');
+    expect(text).toContain('watchesProvider · SettingsScreen:12');
   });
 
   it('resolves screen with BlocProvider<T> in a typed providers list (B5)', async () => {
@@ -150,7 +190,7 @@ describe('find_state_wiring (formatted response)', () => {
   it('labels a use-case dependency as usecase, not repo, at the default depth', async () => {
     const text = await callWiring({ bloc: 'ConstructionFormsBloc' });
     expect(text).toContain(
-      '- usecase _getCounts: GetFormsCountUsecase — usecases.dart:5 (via forms_bloc.dart:14)',
+      '- usecase _getCounts: GetFormsCountUsecase — usecases.dart:5 (via ConstructionFormsBloc:14)',
     );
     // A single hop stops at the use-case — the repo/datasource stay out of view.
     expect(text).not.toContain('FormRepository');
@@ -166,6 +206,17 @@ describe('find_state_wiring (formatted response)', () => {
     expect(text).toContain('datasource _datasource: FormDatasource — form_datasource.dart:2');
   });
 
+  it('reports shape only at verbosity="summary"', async () => {
+    const text = await callWiring({ bloc: 'CounterCubit', verbosity: 'summary' });
+    expect(text).toContain('Wired from 2 source(s):');
+    expect(text).toContain('CounterScreen (2 site(s)) — counter_screen.dart:8');
+    expect(text).toContain('Dependencies: 1 — repo 1');
+    // No per-site or per-dependency expansion at this verbosity.
+    expect(text).not.toContain('createsBloc');
+    expect(text).not.toContain('CounterRepository');
+    expect(text).toContain('Pass verbosity="normal"');
+  });
+
   it('requires exactly one filter', async () => {
     const none = await callWiring({});
     expect(none).toContain('exactly one of screen=, bloc=, or provider=');
@@ -177,5 +228,38 @@ describe('find_state_wiring (formatted response)', () => {
     const text = await callWiring({ bloc: 'NoSuchBloc' });
     expect(text).toContain("No Bloc/Cubit named 'NoSuchBloc' in the index");
     expect(text).toContain('find_symbol');
+  });
+
+  // ── route reachability ────────────────────────────────────────────────────
+
+  it('reports a const path, not a placeholder', async () => {
+    const text = await callWiring({ screen: 'SettingsScreen' });
+    expect(wiringPaths(text)).toEqual(['/settings']);
+  });
+
+  it('joins a relative const child onto its resolved const parent', async () => {
+    const text = await callWiring({ screen: 'ProfileScreen' });
+    expect(wiringPaths(text)).toEqual(['/profile/edit']);
+  });
+
+  it('reaches a screen mounted by a `...Owner.routes()` spread', async () => {
+    // The route lives in a static table outside index.routes; without splicing
+    // the screen looks unreachable by any route at all.
+    const text = await callWiring({ screen: 'OrphanScreen' });
+    expect(wiringPaths(text)).toEqual(['/module']);
+  });
+
+  // The contract between the two tools: one route, one path. A screen that the
+  // route graph places at a path must report that same path here, or a caller
+  // has to open the source to decide which tool to believe.
+  it('reports the same path get_route_graph shows for every routed screen', async () => {
+    const byScreen = graphPathsByScreen(await callRouteGraph());
+    expect(byScreen.size).toBeGreaterThan(0);
+    for (const [screen, paths] of byScreen) {
+      expect({ screen, paths: wiringPaths(await callWiring({ screen })) }).toEqual({
+        screen,
+        paths,
+      });
+    }
   });
 });

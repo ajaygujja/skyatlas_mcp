@@ -42,7 +42,18 @@ describe('get_widget_tree (formatted response)', () => {
     expect(text).toContain('body: BodyView');
     // The body's real tree is not crossed without follow.
     expect(text).not.toContain('Column');
-    expect(text).not.toContain('follows');
+    expect(text).not.toContain('[follows ');
+  });
+
+  it('expands a repeated followed widget once, keeping every call site', async () => {
+    const text = await callTree({ widget: 'RepeatFollowScreen', follow: true });
+    // Both constructor calls are real sites and both stay.
+    expect(text).toContain('children: RepeatedCard — :13');
+    expect(text).toContain('children: RepeatedCard — :14');
+    // The class has one static tree, so it is inlined once and pointed at after.
+    expect(text).toContain('[follows RepeatedCard — repeat_follow.dart:20]');
+    expect(text).toContain('[RepeatedCard expanded above — repeat_follow.dart:20]');
+    expect(text.match(/child: Text/g)).toHaveLength(1);
   });
 
   it('points a StatefulWidget at its State class by default', async () => {
