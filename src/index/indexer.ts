@@ -14,6 +14,7 @@ import { extractBlocs } from '../extractors/bloc-extractor.js';
 import { extractProviders } from '../extractors/riverpod-extractor.js';
 import { extractRoutes } from '../extractors/route-extractor.js';
 import { extractStringConsts } from '../extractors/string-const-extractor.js';
+import { extractReferences } from '../extractors/reference-extractor.js';
 import { ProjectIndex, type FileEntry } from './project-index.js';
 import { isGeneratedFile, packageForFile, walkWorkspace, type PackageEntry } from './workspace.js';
 import { loadCache, saveCache } from './cache.js';
@@ -147,6 +148,7 @@ function indexFileText(
     routeTables,
   } = extractRoutes(tree, relPath);
   const stringConsts = extractStringConsts(tree);
+  const references = extractReferences(tree);
   tree.delete(); // wasm-side memory is manual; the Symbol model owns the data now
   const entry: FileEntry = {
     path: relPath,
@@ -163,6 +165,7 @@ function indexFileText(
     routerGuards,
     edges: [...blocEdges, ...providerEdges],
     stringConsts,
+    references,
     parseErrors,
   };
   const pkg = packageForFile(relPath, packages);

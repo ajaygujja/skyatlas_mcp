@@ -93,6 +93,7 @@ describe('indexStatusLine', () => {
       routerGuards: [],
       edges: [],
       stringConsts: {},
+      references: {},
       parseErrors: [],
     });
     return { index, now: index.updatedAt + agoMs };

@@ -1001,6 +1001,78 @@ question, and it currently falls back to grep — directly undercutting the serv
 - Output budget: a hot symbol will have hundreds of references. Design this tool with `summary` mode
   and per-file aggregation **from day one** (see ISSUE-3) rather than retrofitting.
 
+### Post-fix notes (measured against the evaluation repo, 2026-08-19)
+
+**The existing `Edge[]` graph could not have carried this.** Measured on the evaluation repo, the
+whole graph is **3,363 edges of exactly two kinds** — `readsBloc` 2,789 and `createsBloc` 574.
+`EdgeKind` declares eight; `constructsWidget`, `extends`, `implements`, `mixesIn` and `imports` are
+**emitted by nothing** (`indexer.ts` merges only the bloc and provider extractors' edges). Data
+already indexed elsewhere — supertypes on `Symbol`, constructor calls inside `WidgetInfo.buildTree`,
+param/field type names — yields 84,625 reference-like records, but with structural blind spots rather
+than merely fewer: a widget constructed in a helper method is invisible because only `build()` trees
+are walked, and type mentions in method bodies, static accesses and enum accesses are absent
+entirely. `FormRepository` resolves to 74 such records against 149 real sites; `UIDimensions` to
+4,553 against 6,719. A new extractor was necessary.
+
+**"Hundreds of references" understates it by an order of magnitude.** Site counts per name, measured:
+
+| name | sites | files | full listing |
+|---|---|---|---|
+| `UIDimensions` | 6,719 | 820 | **41,869 tokens** |
+| `AppStrings` | 5,592 | 799 | — |
+| `PagingEntity` | 302 | 235 | 7,628 tokens |
+| `FormRepository` | 149 | 74 | 2,145 tokens |
+| `FormPlayerBloc` | 45 | 11 | 373 tokens |
+
+The distribution is long-tailed: over 9,280 referenced names the median is 4 sites and the 90th
+percentile 14, while 7 names exceed 1,000. So `summary` is not a mode a caller opts into — a caller
+asking about `UIDimensions` cannot know it has 6,719 sites. When the listing would exceed the
+character budget the tool renders shape instead (569 tokens for that name), which is the same
+"choose the informative default" conclusion `get_project_map`'s depth reached in ISSUE-4. Shape is
+rendered, not truncated: a cut-off listing describes the files it happened to reach.
+
+**The extractor cannot filter to names the workspace declares.** It runs per file with no index
+(§1), so it records every name used, including `Widget` and `String`: 281,476 sites, of which the
+external names are ~2,000 of 17,347 but carry a large share of the volume. Filtering at index time
+against the live name set was rejected — a class added later would leave earlier files' sites
+dropped in the cache, which under-reports silently.
+
+**Storage shape decided by measurement.** Sites are stored per file, keyed by name
+(`FileEntry.references`, mirroring `stringConsts`): 19.6 MB of cache against 23 MB for a flat list
+carrying `${file}#${Class}` per record, and a name lookup costs one map read per file — 0.05–0.4 ms
+for any name on this repo — instead of a 281k scan. Nothing is aggregated onto `ProjectIndex`: with
+`removeFile`'s indexOf-and-splice pattern, a flat aggregate would cost ~5 ms per file save in the
+watcher, and an aggregate kept across edits can disagree with the files it came from.
+
+**Kinds are read off syntax, and one of them was missed by the design.** `@LazySingleton(as: X)`
+parses as `annotation > identifier` with `arguments` as a sibling — not the `selector > argument_part`
+a call has — so an annotation needed its own kind rather than falling through as a plain mention;
+`find_references(name="LazySingleton", kind=["annotation"])` now answers "every DI registration in
+the repo" (279 sites) in 590 tokens. Cascade calls (`..write()`) parse through `cascade_selector`,
+a third call shape the two obvious ones do not cover.
+
+**A typedef declares its own name in a type position.** `typedef Handler = …` is the one declaration
+whose name is a `type_identifier`, so excluding declaration names only in the identifier branch left
+64 declarations referencing themselves on the evaluation repo (0.06% of sites) — found by
+cross-checking every recorded site against `Symbol.nameRange`, which is now a test.
+
+**Calls are attributed by name only, and the honest limit is large.** Of 27,563 call sites on names
+the repo declares, **16,958 sit on a name declared more than once** (`copyWith` 3,670, `read` 1,847,
+`add` 1,345). Receivers: 10,738 name a type, 16,824 are lowercase, and of those only 4,070 match a
+field or constructor-param type on the enclosing class. The receiver is therefore recorded verbatim
+and the response states that it is not resolved, rather than implying a resolved call graph.
+
+**Cost, measured cold on 5,054 files / 70,501 symbols.** Index time **10.2 s → 13.4 s** (the walk
+rides the tree the indexer already parsed, so the added cost is the scan; the budget is 50.5 s for
+this repo). Cache **52 MB → 81 MB**. RSS measured 490 MB on the cold run and 585 MB warm, inside the
+441–650 MB band this repo already fluctuated across on unchanged code — the recorded numbers are the
+baseline, not the flag. Doctor: 100% clean, zero Tier-A skips. Probe: the two `find_references` calls
+recorded per run measure 547 and 652 tokens; the widest response in the suite is still
+`find_state_wiring(bloc=…, depth=3)` at 3,604.
+
+**Cache bumped 9 → 10.** A v9 entry carries no `references`, so a name's site count would have been
+short by every file the cache still served — silently, and only for the files nobody had edited.
+
 ### 9.2 `get_di_graph` — highest differentiation
 
 **Gap:** the server detects `injectable` in 1,359 files and `get_it` in 2 (via
@@ -1033,7 +1105,7 @@ is exactly the kind of whole-repo structural fact this server exists to answer.
 | 2 | ISSUE-2 (route/wiring resolver) — **FIXED 2026-08-18** | Pure refactor with a byte-identical regression guard available. | Low |
 | 3 | ISSUE-3 (output budget) — **FIXED 2026-08-18** | Largest practical gain; unblocks real use on large repos. | Medium — needs instrumentation first |
 | 4 | ISSUE-4 (folder depth) | One-line change plus a param. | Low |
-| 5 | 9.1 `find_references` | Biggest capability gap. Build after ISSUE-3 so it ships with budgeting built in. | High — new extractor |
+| 5 | 9.1 `find_references` — **DONE 2026-08-19** | Biggest capability gap. Build after ISSUE-3 so it ships with budgeting built in. | High — new extractor |
 | 6 | 9.2 `get_di_graph` | Differentiator; data already extracted. | Medium |
 | 7 | ISSUE-5, 6, 7 | Narrow / cosmetic / trivial. | Low |
 

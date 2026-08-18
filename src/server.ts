@@ -9,6 +9,7 @@ import { startWatcher } from './index/watcher.js';
 import type { ProjectIndex } from './index/project-index.js';
 import { registerGetProjectMap } from './tools/get-project-map.js';
 import { registerFindSymbol } from './tools/find-symbol.js';
+import { registerFindReferences } from './tools/find-references.js';
 import { registerGetSymbol } from './tools/get-symbol.js';
 import { registerGetWidgetTree } from './tools/get-widget-tree.js';
 import { registerGetRouteGraph } from './tools/get-route-graph.js';
@@ -28,6 +29,7 @@ export function createServer(getIndex: () => Promise<ProjectIndex>): McpServer {
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
   registerGetProjectMap(server, getIndex);
   registerFindSymbol(server, getIndex);
+  registerFindReferences(server, getIndex);
   registerGetSymbol(server, getIndex);
   registerGetWidgetTree(server, getIndex);
   registerGetRouteGraph(server, getIndex);

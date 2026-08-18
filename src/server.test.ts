@@ -29,10 +29,11 @@ describe('skyatlas MCP server (stdio E2E)', () => {
     await rm(root, { recursive: true, force: true });
   });
 
-  it('lists all six v1 tools (ping retired)', async () => {
+  it('lists every registered tool', async () => {
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual([
+      'find_references',
       'find_state_wiring',
       'find_symbol',
       'get_project_map',

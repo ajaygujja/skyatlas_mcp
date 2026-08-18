@@ -16,6 +16,7 @@ import type {
   RouterGuardNote,
   WidgetInfo,
 } from '../model/flutter.js';
+import type { FileReferences } from '../model/reference.js';
 import type { ImportEntry } from '../extractors/import-extractor.js';
 import type { StringConsts } from '../extractors/string-const-extractor.js';
 import type { PackageEntry } from './workspace.js';
@@ -67,6 +68,8 @@ export interface FileEntry {
   edges: Edge[];
   /** String constants declared in this file, for route path-const resolution. */
   stringConsts: StringConsts;
+  /** Names this file uses, and where — keyed by name (Phase 3f, find_references). */
+  references: FileReferences;
   parseErrors: string[];
 }
 
