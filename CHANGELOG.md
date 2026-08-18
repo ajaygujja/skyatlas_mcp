@@ -39,6 +39,41 @@ All notable changes to this project are documented here. The format is based on
   `*.gr.dart` entry. Routes are now reachable by both the resolved screen and the page class.
 - `get_route_graph` output is unchanged, guarded by a whole-output snapshot; a cross-tool test now
   asserts both tools report the same path for every routed screen.
+- Response size is now bounded in characters, the unit a response is paid for, instead of lines alone
+  (ISSUE-3). Line caps never bound the widest responses — measured against a 5,054-file workspace, a
+  215-route `get_route_graph` came to 224 lines and ~6,700 tokens, well under the 250-line cap — so
+  every capped section now also carries a character budget, and the notice still says how many lines
+  were dropped and how to ask for less.
+- Locations are no longer repeated once per line. Where a block's lines each carry a single location
+  (`get_route_graph`, `find_symbol`) a line inside the last-named file renders as `:120`; where a
+  line carries two (`find_state_wiring` dependency and call-site lines) it renders as `UserBloc:120`,
+  naming the declaration the response already printed in full. Half of a route graph's characters and
+  two thirds of a wiring response's were repeated paths.
+- `find_state_wiring`: call sites that differ only by line are aggregated —
+  `readsBloc · FormScreen:541,717,880  (9 sites)` instead of nine lines. Every line number is kept.
+- `find_state_wiring`: the per-line `(syntactic)` label moved to the response footer. Confidence is
+  `syntactic` for every edge the extractors emit, so the label repeated one fact on every line; a
+  line whose confidence is anything else is still labelled inline.
+- `get_widget_tree`: with `follow=true`, a widget class reached down more than one branch is expanded
+  once and pointed at afterwards (`[RepeatedCard expanded above — card.dart:20]`). Both call sites
+  are still rendered; only the duplicate subtree is dropped, which was 65% of the characters in the
+  measured worst case.
+- `find_symbol`: signatures show the first four parameters. A dependency-injected constructor can
+  carry thirty, and one such line outweighed the rest of the page of matches; `get_symbol` remains
+  the tool for a full declaration.
+- `find_state_wiring`: resolving the implementor behind an interface no longer scans every symbol per
+  dependency. A `depth=3` query against the 70,501-symbol workspace fell from 213 ms to 10 ms.
+
+### Added
+
+- `find_state_wiring` and `get_route_graph`: a `verbosity` parameter. `summary` reports shape —
+  counts, declaring files, top-level paths, per-target site and dependency counts — for a few hundred
+  tokens; `normal` (the default) renders full detail within the character budget; `full` renders the
+  same detail with the budget lifted.
+- `benchmark` now measures the formatted size of every tool response the index can serve, alongside
+  index timing, and records it to `benchmarks/history.jsonl` under `--record` — response growth is a
+  regression the same way index time is. Calls are selected from the index (widest bloc, busiest
+  screen) so the script runs against any workspace and two runs over one repo are comparable.
 
 ## [0.2.0] - 2026-06-19
 

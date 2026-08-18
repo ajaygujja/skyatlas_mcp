@@ -9,14 +9,24 @@ import type { ProjectIndex } from '../index/project-index.js';
 import type { Symbol } from '../model/symbol.js';
 import {
   annotationsText,
-  capLines,
+  capBody,
   errorResult,
   fileLine,
   signatureText,
   textResult,
+  type BodyLimits,
 } from './format.js';
 
-const MAX_MEMBERS = 80;
+/**
+ * Size limits for the member list. A member count alone does not bound the
+ * section: one dependency-injected constructor can carry a signature wider than
+ * eighty ordinary members put together.
+ */
+const MEMBER_LIMITS: BodyLimits = {
+  maxLines: 80,
+  maxChars: 12_000,
+  narrowHint: 'fetch a member directly via get_symbol id=',
+};
 
 export function registerGetSymbol(server: McpServer, getIndex: () => Promise<ProjectIndex>): void {
   server.registerTool(
@@ -115,7 +125,7 @@ function formatSymbol(sym: Symbol, index: ProjectIndex, includeChildren: boolean
       const ann = annotationsText(c);
       return `- ${c.kind} ${signatureText(c)} — :${String(c.range.startLine)}${ann ? ` · ${ann}` : ''}`;
     });
-    lines.push(...capLines(memberLines, MAX_MEMBERS, 'fetch a member directly via get_symbol id='));
+    lines.push(...capBody(memberLines, MEMBER_LIMITS, 'normal'));
   }
   return lines;
 }

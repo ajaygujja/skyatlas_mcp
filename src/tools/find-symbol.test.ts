@@ -67,6 +67,14 @@ describe('find_symbol (paging)', () => {
     expect(text).toContain(`only ${String(TOTAL)} match(es)`);
   });
 
+  it('names each file once and refers to further matches in it by line', async () => {
+    const text = await callFindSymbol({ query: 'PagedItem' });
+    // Matches of one name cluster in a few files; only the first names the path.
+    expect(text).toContain('- class PagedItem00 — lib/items.dart:1');
+    expect(text).toContain('- class PagedItem01 — :2');
+    expect(text).toContain('A location written `:120` is a line in the last file named above it.');
+  });
+
   it('omits the paging window when everything fits on one page', async () => {
     const text = await callFindSymbol({ query: 'PagedItem00' });
     expect(text).toContain("1 match(es) for 'PagedItem00':");

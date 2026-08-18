@@ -6,7 +6,14 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { ProjectIndex } from '../index/project-index.js';
 import type { Symbol } from '../model/symbol.js';
-import { annotationsText, errorResult, fileLine, signatureText, textResult } from './format.js';
+import {
+  annotationsText,
+  BARE_LINE_NOTE,
+  errorResult,
+  FileScope,
+  signatureText,
+  textResult,
+} from './format.js';
 
 const SYMBOL_KINDS = [
   'class',
@@ -24,6 +31,13 @@ const SYMBOL_KINDS = [
 ] as const;
 
 const MAX_RESULTS = 50;
+
+/**
+ * Parameters printed per match. This tool locates declarations; `get_symbol`
+ * describes one. A dependency-injected constructor can carry thirty parameters,
+ * and printing them all costs more than the rest of the page of matches.
+ */
+const MAX_PARAMS_PER_MATCH = 4;
 
 export function registerFindSymbol(server: McpServer, getIndex: () => Promise<ProjectIndex>): void {
   server.registerTool(
@@ -128,21 +142,31 @@ export function registerFindSymbol(server: McpServer, getIndex: () => Promise<Pr
       const end = start + page.length; // exclusive index of the last shown match
       const window = total > page.length ? ` (showing ${String(start + 1)}-${String(end)})` : '';
       const lines = [`${String(total)} match(es) for '${query}'${filterText}${window}:`];
-      lines.push(...page.map(formatMatch));
+      // Matches of one name cluster in a few files; the scope names each file
+      // once and refers to further declarations in it by line.
+      const scope = new FileScope();
+      lines.push(...page.map((sym) => formatMatch(sym, scope)));
       if (end < total) {
         lines.push(
           `… ${String(total - end)} more — pass offset=${String(end)} for the next page, or narrow with kind= / package=.`,
         );
       }
+      lines.push(
+        `${BARE_LINE_NOTE} Signatures show the first ${String(MAX_PARAMS_PER_MATCH)} parameters — ` +
+          'call get_symbol for a full declaration.',
+      );
       return textResult(lines.join('\n'));
     },
   );
 }
 
-function formatMatch(sym: Symbol): string {
+function formatMatch(sym: Symbol, scope: FileScope): string {
   const ann = annotationsText(sym);
+  const where = scope.ref(sym.file, sym.range.startLine);
+  scope.enter(sym.file);
+  const signature = signatureText(sym, { maxParams: MAX_PARAMS_PER_MATCH });
   return (
-    `- ${sym.kind} ${sym.qualifiedName} — ${fileLine(sym)}` +
-    ` · ${signatureText(sym)}${ann ? ` · ${ann}` : ''}${sym.doc ? ` · /// ${sym.doc}` : ''}`
+    `- ${sym.kind} ${sym.qualifiedName} — ${where}` +
+    ` · ${signature}${ann ? ` · ${ann}` : ''}${sym.doc ? ` · /// ${sym.doc}` : ''}`
   );
 }

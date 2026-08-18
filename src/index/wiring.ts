@@ -386,6 +386,10 @@ function resolveProvider(index: ProjectIndex, name: string): ResolvedTarget | un
 function repoDepsOf(index: ProjectIndex, blocSymbolId: string, maxDepth: number): RepoDep[] {
   const out: RepoDep[] = [];
   const seenClasses = new Set<string>([blocSymbolId]);
+  // Built at most once per walk, and only if an interface dependency is reached:
+  // resolving implementors by scanning every symbol per dependency is O(deps ×
+  // symbols), which on a 70k-symbol repo dominates the whole query.
+  let implementors: Map<string, Symbol[]> | undefined;
 
   const walk = (symbolId: string, depth: number): void => {
     if (depth > maxDepth) return;
@@ -401,8 +405,11 @@ function repoDepsOf(index: ProjectIndex, blocSymbolId: string, maxDepth: number)
       seenMembers.add(member);
       seenClasses.add(cls.id);
 
-      const impl =
-        depth < maxDepth ? implementorOf(index, cls.name, cls.id, seenClasses) : undefined;
+      let impl: Symbol | undefined;
+      if (depth < maxDepth) {
+        implementors ??= implementorsByInterface(index);
+        impl = implementorOf(implementors, cls.name, cls.id, seenClasses);
+      }
       const dep: RepoDep = {
         member,
         typeName,
@@ -448,23 +455,43 @@ function depRole(typeName: string): DepRole {
 }
 
 /**
+ * Container classes grouped by each interface name they declare `implements`
+ * for, ordered by symbol id so a pick among several is deterministic.
+ *
+ * Derived on demand rather than stored on the index, matching
+ * `ProjectIndex.stringConsts()`: an aggregate kept across edits is an aggregate
+ * that can disagree with the files it came from.
+ */
+function implementorsByInterface(index: ProjectIndex): Map<string, Symbol[]> {
+  const out = new Map<string, Symbol[]>();
+  for (const sym of index.symbolsById.values()) {
+    if (!CONTAINER_KINDS.has(sym.kind) || !sym.implementsTypes) continue;
+    for (const type of sym.implementsTypes) {
+      const bucket = out.get(type.name);
+      if (bucket) bucket.push(sym);
+      else out.set(type.name, [sym]);
+    }
+  }
+  for (const bucket of out.values()) bucket.sort((a, b) => a.id.localeCompare(b.id));
+  return out;
+}
+
+/**
  * The concrete container class declaring `implements <name>` — the implementor
  * behind an interface. Picked deterministically (lowest symbol id) when several
  * implement it; an already-visited class is skipped so the cycle guard holds.
  */
 function implementorOf(
-  index: ProjectIndex,
+  implementors: Map<string, Symbol[]>,
   name: string,
   interfaceId: string,
   seen: Set<string>,
 ): Symbol | undefined {
-  let pick: Symbol | undefined;
-  for (const sym of index.symbolsById.values()) {
-    if (sym.id === interfaceId || seen.has(sym.id) || !CONTAINER_KINDS.has(sym.kind)) continue;
-    if (!sym.implementsTypes?.some((t) => t.name === name)) continue;
-    if (!pick || sym.id.localeCompare(pick.id) < 0) pick = sym;
+  for (const sym of implementors.get(name) ?? []) {
+    if (sym.id === interfaceId || seen.has(sym.id)) continue;
+    return sym;
   }
-  return pick;
+  return undefined;
 }
 
 /** `Future<List<int>>` → `Future`; `UserRepository?` → `UserRepository`. */
