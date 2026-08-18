@@ -214,14 +214,46 @@ pure waste, and it is a one-parameter fix.
 
 | Tool | Has scoping today | Add |
 |---|---|---|
-| `get_route_graph` | `router` only | `package`, `feature`, `pathPrefix` |
+| `get_route_graph` | `router`, `verbosity` | `package`, `feature`, `pathPrefix` — **DONE 2026-08-18** |
 | `get_widget_tree` | `depth`, `follow` | (adequate) |
 | `find_state_wiring` | `screen`/`bloc`/`provider`, `depth` | `verbosity` (see `AI_FIX_SPEC.md` §4) |
 | `find_symbol` | `package`, `kind`, `match`, `offset` | (good — use as the model for the others) |
-| `get_project_map` | `package` | `depth` (see `AI_FIX_SPEC.md` §5) |
+| `get_project_map` | `package` | `depth` (see `AI_FIX_SPEC.md` §5) — **DONE 2026-08-18** |
 
 **Principle: every tool that can return repo-wide data must accept a scope argument.** `find_symbol`
 already models this well — bring the rest up to its standard.
+
+### Post-fix notes (measured against the evaluation repo, 2026-08-18)
+
+**Which file a route is attributed to decides whether the filter works.** Measured over 219 resolved
+routes: attributing by the file that *declares* the route puts 114 of them (52%) outside any feature,
+because 111 are declared in one central table (`lib/core/router/app_navigation.dart`) and the rest in
+seven per-module router files. Attributing by the file declaring the *screen* the route renders leaves
+13 unattributed and distributes the rest as a caller expects — forms 29, safety 25, documents 25.
+`get_route_graph` therefore scopes on the route's owning file (`src/index/feature-scope.ts`,
+`routeOwnerFile`), which is the screen's declaration where one resolves and the route's otherwise.
+The same rule drives `package=`, so both filters answer the same question about the same file.
+
+**What each filter is worth here, measured.** Whole graph 3,346 tokens.
+
+| filter | routes | cost | note |
+|---|---|---|---|
+| `feature=forms` | 29 | **565 tokens** | the case scoping exists for |
+| `feature=analytics` | 9 | 238 tokens | recorded per run by `benchmark` |
+| `pathPrefix=/quality` | 13 | 372 tokens | prefix, not path segment: this app's paths are flat (`/form-screen`, `/form-history`), so a segment match would find one route where a prefix finds fifteen |
+| `package=chat_package` | 3 | 141 tokens | 216 of 219 routes sit in one package here — the filter is correct but cuts little in a single-app monorepo |
+
+**Ancestors are kept, and counted apart.** A matched route nested under a shell inherits that shell's
+path and guards, so pruning to matches alone would present it as mounted at the root. Ancestors
+rendered for context are reported in the response rather than folded into the match count.
+
+**Dynamic tables stay unfiltered.** Their routes are unknown by construction, so whether any match a
+filter is unknowable; they are listed whole with that stated (§7.2).
+
+**`feature=` is a layout convention, not extracted data.** A segment below `features/`, `feature/` or
+`modules/` is a feature; a workspace with none is told so and pointed at `package=`/`pathPrefix=`
+rather than having a feature invented for it. `get_project_map`'s folder listing (`AI_FIX_SPEC.md`
+§5) is where a caller reads the valid names.
 
 ---
 
@@ -413,7 +445,7 @@ route). Do not attempt general pattern mining.
 
 | # | Item | Effort | Payoff | Depends on |
 |---|---|---|---|---|
-| 1 | Scope filters on `get_route_graph` (+ `verbosity` everywhere) | S | High — fixes the economics | `AI_FIX_SPEC.md` §4 |
+| 1 | Scope filters on `get_route_graph` (+ `verbosity` everywhere) — **DONE 2026-08-18** | S | High — fixes the economics | `AI_FIX_SPEC.md` §4 |
 | 2 | `get_feature_context` | M | **Highest** — 20k tok → 1.2k, 15 calls → 1 | Existing index only |
 | 3 | `skyatlas://digest` Resource | S | High — zero-call orientation | #2's aggregation logic |
 | 4 | Freshness line + three-kinds-of-nothing (§7.2, §7.3) | S | High — trust, cheap | — |

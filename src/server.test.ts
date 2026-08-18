@@ -1,4 +1,4 @@
-import { mkdtemp, rm, cp } from 'node:fs/promises';
+import { mkdtemp, rm, cp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -101,5 +101,18 @@ describe('skyatlas MCP server (stdio E2E)', () => {
     const text = (result.content as { type: string; text: string }[])[0]?.text ?? '';
     expect(text).toContain("No symbols matching 'DoesNotExistAnywhere'");
     expect(text).toContain('get_project_map');
+  });
+});
+
+// The handshake version is the only version a client sees. It is a hand-written
+// constant, so it drifts from the published one unless something asserts the
+// pair (AI_FIX_SPEC.md §8).
+describe('server version', () => {
+  it('reports the version the package publishes', async () => {
+    const pkg = JSON.parse(
+      await readFile(path.resolve(import.meta.dirname, '../package.json'), 'utf8'),
+    ) as { version: string };
+    const source = await readFile(path.resolve(import.meta.dirname, 'server.ts'), 'utf8');
+    expect(source).toContain(`const SERVER_VERSION = '${pkg.version}';`);
   });
 });

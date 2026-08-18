@@ -313,10 +313,10 @@ All responses are compact markdown with `file:line` references, hard-capped in s
 
 | Tool | Input (Zod) | Returns |
 |---|---|---|
-| `get_project_map` | `{ package?: string }` | Repo overview: packages, feature folders, counts by kind, detected stack (state mgmt, router, codegen) — the "read this first" tool |
+| `get_project_map` | `{ package?: string, depth?: number }` | Repo overview: packages, feature folders (listed as deep as each package needs), counts by kind, detected stack (state mgmt, router, codegen) — the "read this first" tool |
 | `find_symbol` | `{ query: string, kind?: SymbolKind, package?: string }` | Matching symbols: qualified name, kind, signature line, file:line, annotations |
 | `get_symbol` | `{ id?: string, name?: string, includeChildren?: boolean }` | One symbol in depth: declaration header, type params, extends/implements, annotations, member list, edges in/out |
-| `get_route_graph` | `{ router?: string }` | Route tree with computed full paths, screen widget per route, guards: `/home → HomeScreen (lib/...:12)` indented by nesting |
+| `get_route_graph` | `{ router?: string, package?: string, feature?: string, pathPrefix?: string, verbosity?: string }` | Route tree with computed full paths, screen widget per route, guards: `/home → HomeScreen (lib/...:12)` indented by nesting; scoped by where the screen is declared |
 | `get_widget_tree` | `{ widget: string, depth?: number }` | Static build() tree of a widget, builder callbacks marked, Bloc/Provider wiring noted inline |
 | `find_state_wiring` | `{ screen?: string, bloc?: string, provider?: string }` | Connections: screen ↔ bloc/provider ↔ (syntactically visible) repositories, each edge with file:line and confidence |
 

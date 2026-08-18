@@ -16,6 +16,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import type { ProjectIndex } from '../src/index/project-index.js';
+import { featureOfFile } from '../src/index/feature-scope.js';
 import { createServer } from '../src/server.js';
 
 /**
@@ -73,7 +74,24 @@ export function probeCalls(index: ProjectIndex): ProbeCall[] {
     );
   }
   calls.push({ tool: 'get_route_graph', args: {} });
+  const feature = busiestFeature(index);
+  if (feature !== undefined) calls.push({ tool: 'get_route_graph', args: { feature } });
   return calls;
+}
+
+/**
+ * Feature holding the most files, as the scoped call a session makes once it
+ * knows what it is working on. Measuring it alongside the whole graph is what
+ * shows whether scoping is worth reaching for.
+ */
+function busiestFeature(index: ProjectIndex): string | undefined {
+  const counts = new Map<string, number>();
+  for (const path of index.files.keys()) {
+    const feature = featureOfFile(path);
+    if (feature !== undefined) counts.set(feature, (counts.get(feature) ?? 0) + 1);
+  }
+  const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  return ranked[0]?.[0];
 }
 
 /** Measures each call's formatted response over an in-memory MCP round trip. */
