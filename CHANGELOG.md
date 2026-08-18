@@ -6,6 +6,29 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Fixed
+
+- `get_widget_tree`: constructor calls in non-layout slots (`listener:`, `create:`, `update:`,
+  `validator:`, go_router `redirect:`, etc.) are no longer surfaced as fabricated layout nodes — the
+  previous `/^on[A-Z]/`-only heuristic missed `listener:` and friends, so a BlocListener's dispatched
+  event (and any spread arguments inside it) rendered as if it were part of the widget tree
+  (ISSUE-1). Fixed at two layers: the extractor now excludes an explicit non-layout slot set in
+  addition to the `on*` convention, and `get_widget_tree` additionally drops any constructor the
+  index positively resolves to a non-Widget class, conservatively keeping anything absent, ambiguous,
+  or unresolvable (most real widgets are unindexed Flutter SDK classes). Dropped nodes are marked
+  `(Name — non-widget, not expanded)` rather than silently omitted.
+- Disk cache bumped to v9: the extractor fix above changes `namedSlots` content for files already in
+  a v8 cache without changing their content hash, so a stale cache would otherwise keep serving the
+  old, incorrect tree until the file changed.
+- `get_widget_tree`: the non-Widget filter (ISSUE-1 Layer B) now walks a constructor's declared
+  supertype chain instead of checking only its direct superclass. `index.widgets` registers a class
+  only when its direct superclass is a known Flutter base, so a widget subclassing another
+  already-indexed widget (rather than a Flutter base class directly) was previously misjudged
+  non-widget and dropped from the tree. The walk still keeps any node whose chain is ambiguous,
+  leaves the index (external/SDK base), or cycles.
+- `get_widget_tree`: the set of indexed widget names is now built once per `get_widget_tree` call and
+  looked up in O(1), instead of scanning `index.widgets.values()` on every rendered node.
+
 ## [0.2.0] - 2026-06-19
 
 ### Added

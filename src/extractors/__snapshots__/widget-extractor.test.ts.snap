@@ -66,6 +66,46 @@ exports[`extractWidgets > matches snapshot: arrow_body.dart 1`] = `
 ]
 `;
 
+exports[`extractWidgets > matches snapshot: bloc_listener_event.dart 1`] = `
+[
+  {
+    "buildTree": [
+      {
+        "line": 12,
+        "namedSlots": {
+          "body": [
+            {
+              "line": 13,
+              "namedSlots": {
+                "child": [
+                  {
+                    "line": 25,
+                    "namedSlots": {},
+                    "widget": "Text",
+                  },
+                ],
+              },
+              "typeArgs": [
+                "FormRejectedVersionCubit",
+                "FormRejectedVersionState",
+              ],
+              "widget": "BlocListener",
+            },
+          ],
+        },
+        "widget": "Scaffold",
+      },
+    ],
+    "file": "fixtures/widgets/bloc_listener_event.dart",
+    "flavor": "stateless",
+    "line": 7,
+    "name": "FormRejectedVersionDetailsScreen",
+    "superclass": "StatelessWidget",
+    "symbolId": "fixtures/widgets/bloc_listener_event.dart#FormRejectedVersionDetailsScreen",
+  },
+]
+`;
+
 exports[`extractWidgets > matches snapshot: home_screen.dart 1`] = `
 [
   {

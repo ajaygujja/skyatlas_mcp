@@ -547,7 +547,7 @@ function slotsFromArgs(
     }
     if (arg.type === 'named_argument') {
       const label = labelOf(arg);
-      if (!label || isEventHandlerSlot(label)) {
+      if (!label || isNonLayoutSlot(label)) {
         i++;
         continue;
       }
@@ -575,13 +575,31 @@ function slotsFromArgs(
 }
 
 /**
- * Event-handler slots (`onPressed`, `onTap`, `onChanged`, …) hold callbacks that
- * fire at runtime, not part of the static layout tree — and they often construct
- * non-widgets (Bloc events, etc.). Builder slots (`builder`, `itemBuilder`) do
- * NOT match this and are kept. Convention: handlers are `on` + CapitalizedVerb.
+ * Slots whose values are callbacks or factories, not static layout. Their bodies
+ * construct non-widgets (Bloc events, repositories) and must not be scanned as
+ * tree nodes. Builder slots (`builder`, `itemBuilder`, …) are deliberately NOT
+ * here — their closures do return widgets.
  */
-function isEventHandlerSlot(label: string): boolean {
-  return /^on[A-Z]/.test(label);
+const NON_LAYOUT_SLOTS = new Set([
+  'listener', // BlocListener / BlocConsumer
+  'listenWhen',
+  'buildWhen',
+  'create', // BlocProvider / Provider factory
+  'update', // ProxyProvider
+  'redirect', // go_router
+  'validator',
+  'onGenerateRoute',
+  'onUnknownRoute',
+]);
+
+/**
+ * True for a slot whose closure fires at runtime and often constructs
+ * non-widgets, so its body must not be scanned as part of the static layout
+ * tree. Convention: event handlers are `on` + CapitalizedVerb (onPressed,
+ * onTap, …); everything else non-layout is named explicitly in the set above.
+ */
+function isNonLayoutSlot(label: string): boolean {
+  return NON_LAYOUT_SLOTS.has(label) || /^on[A-Z]/.test(label);
 }
 
 /**
@@ -606,11 +624,11 @@ function slotsFromRecordLiteral(rec: Node, ctx: ScanCtx): Record<string, WidgetN
       if (v) segment.push(v);
       i++;
     }
-    if (label && !isEventHandlerSlot(label) && label !== 'create') {
-      // `create:` factory closures return non-widget objects (blocs, repos);
-      // scanning their bodies would surface constructor identifiers as phantom
-      // widget slots.  Event handler slots (`on[A-Z]`) are excluded for the
-      // same reason — their callbacks fire at runtime, not at layout time.
+    if (label && !isNonLayoutSlot(label)) {
+      // Non-layout slots (`create:`, `listener:`, event handlers, …) fire at
+      // runtime and often construct non-widgets (blocs, repos, events);
+      // scanning their bodies would surface constructor identifiers as
+      // phantom widget slots.
       const nodes = scanSequence(segment, false, ctx);
       if (nodes.length > 0) addSlot(slots, label, nodes);
     }
