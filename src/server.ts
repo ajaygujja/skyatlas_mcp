@@ -16,7 +16,13 @@ import { registerFindStateWiring } from './tools/find-state-wiring.js';
 import { logger } from './shared/logger.js';
 
 const SERVER_NAME = 'skyatlas';
-const SERVER_VERSION = '0.1.0';
+
+/**
+ * Version reported in the MCP handshake. Kept equal to `package.json`, which
+ * `src/server.test.ts` asserts — a client that is told a version the published
+ * package does not carry cannot reason about which fixes it is talking to.
+ */
+const SERVER_VERSION = '0.2.0';
 
 export function createServer(getIndex: () => Promise<ProjectIndex>): McpServer {
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });

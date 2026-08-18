@@ -29,6 +29,7 @@ import { createServer } from '../server.js';
 
 const ROUTE_FIXTURES = fileURLToPath(new URL('../../fixtures/routes', import.meta.url));
 const WIRING_FIXTURES = fileURLToPath(new URL('../../fixtures/wiring', import.meta.url));
+const SCOPE_FIXTURES = fileURLToPath(new URL('../../fixtures/route-scope', import.meta.url));
 
 /** Characters per token, matching `scripts/response-probe.ts`. */
 const CHARS_PER_TOKEN = 4;
@@ -203,3 +204,40 @@ describe('find_state_wiring response budget', () => {
 function flatten(views: RouteView[]): RouteView[] {
   return views.flatMap((view) => [view, ...flatten(view.children)]);
 }
+
+describe('get_project_map response budget', () => {
+  const client = new Client({ name: 'project-map-budget-test', version: '0.0.0' });
+  let root: string;
+
+  async function callMap(args: Record<string, unknown> = {}): Promise<string> {
+    const result = await client.callTool({ name: 'get_project_map', arguments: args });
+    return (result.content as { type: string; text: string }[])[0]?.text ?? '';
+  }
+
+  beforeAll(async () => {
+    root = await mkdtemp(join(tmpdir(), 'skyatlas-map-budget-'));
+    await cp(SCOPE_FIXTURES, root, { recursive: true });
+    await connect((await buildIndex(root)).index, client);
+  });
+
+  afterAll(async () => {
+    await client.close();
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it('stays inside the token budget at the depth it chooses', async () => {
+    expect(estTokens(await callMap())).toBeLessThan(NORMAL_TOKEN_BUDGET);
+  });
+
+  // Grouping generated files apart from the folder rows must not lose them:
+  // the rows and the generated row together account for every indexed file.
+  it('accounts for every file the header counts', async () => {
+    const text = await callMap();
+    const total = /(\d+) Dart files/.exec(text)?.[1];
+    const rowed = [...text.matchAll(/^- .*?: (\d+) file\(s\)/gm)].reduce(
+      (sum, match) => sum + Number(match[1]),
+      0,
+    );
+    expect(rowed).toBe(Number(total));
+  });
+});

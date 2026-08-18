@@ -825,6 +825,54 @@ Use `fixtures/mini-app/` (already contains a root package plus a nested `package
 Add a deep nested feature folder and assert: `depth=2` output is unchanged from today's snapshot;
 `depth=3` reveals the nested folders; the cap message appears when the limit is hit.
 
+### Post-fix notes (measured against the evaluation repo, 2026-08-18)
+
+**The "better default" is the fix; the parameter alone is not.** Measured per package on the
+evaluation repo (5,054 files), rows / characters / share held by the largest folder:
+
+| package | depth 2 | depth 3 | depth 4 |
+|---|---|---|---|
+| `arena_360` (4,584 files) | 7 rows, 166 ch, **83% `lib/features`** | 71 rows, 2,352 ch, 17% | 236 rows, 10,239 ch, 5% |
+| `ui_library` (145) | 2 rows, 39 ch, 99% | 9 rows, 237 ch, 79% | 21 rows, 741 ch, 56% |
+| `models` (19) | 8 rows, 202 ch, 21% | 8 rows (no further split) | 8 rows |
+
+A parameter defaulting to 2 leaves the *first* call — the one this tool exists for — describing 83%
+of the repo as one line, and a caller who does not yet know the repo cannot know to raise it. A
+fixed deeper default is wrong for the flat packages. Per-package deepening fits both, and the data
+bounds it: dominance collapses 83% → 17% in one step, and a package with no deeper structure
+saturates, so deepening it costs nothing. The rule is dominance > 40%, depth ≤ 4, and stop when the
+deeper grouping does not split the package further; the choice depends only on indexed paths, so it
+is deterministic and snapshot-testable. Each package heading states the depth it rendered at, which
+is also how `depth=` becomes discoverable.
+
+**Deviation from this section.** "default 2, so existing behavior is unchanged" does not hold — the
+default output changes, deliberately, because unchanged behavior is the defect. `depth=2` reproduces
+the old rows, and the tests assert both that and the auto-chosen depth.
+
+**Also fixed, found while measuring.**
+
+- **A codegen tree mirrors the tree it is generated from.** 24 of `arena_360`'s 71 depth-3 rows were
+  `lib/gen/*` restating feature names already listed above them, and every generated file in the repo
+  sits under that one folder. Generated files are now one row per package, consistent with §7.4;
+  their count still appears, and a test asserts the rows account for every file the header counts.
+- **A package with no Dart files rendered a heading and nothing else** — a blank the caller has to
+  interpret. It now says so (§7.2).
+- **The listing was line-capped only** (`capLines(…, 25)`), the unit ISSUE-3 established does not
+  bind. It now uses `capBody`, applied per package so one large package cannot consume the budget of
+  the packages rendered after it.
+
+**Measured cost.** Whole map 424 → **1,407 tokens**, and it now names 28 features with their sizes
+instead of one row covering them. `depth=2` renders 524. The extra tokens replace the second call a
+caller had to make to learn the same thing.
+
+**No cache bump.** Depth selection is request-time grouping over indexed paths; no indexed shape
+changed, so `CACHE_VERSION` stays at 9.
+
+**Verification.** `npm run build`, `npm run lint`, `npm test` (215 tests, 18 files) clean; doctor on
+the evaluation repo reports 100% clean coverage with zero Tier-A skips; benchmark recorded with both
+budgets true. RSS measured 452, 460, 537 and 650 MB across four runs of identical code — the flag
+tracks that noise, not this change; the recorded numbers are the baseline to compare.
+
 ---
 
 ## 6. ISSUE-5 — Route builder patterns that lose the screen widget

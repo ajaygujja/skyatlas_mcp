@@ -74,6 +74,25 @@ All notable changes to this project are documented here. The format is based on
   index timing, and records it to `benchmarks/history.jsonl` under `--record` — response growth is a
   regression the same way index time is. Calls are selected from the index (widest bloc, busiest
   screen) so the script runs against any workspace and two runs over one repo are comparable.
+- `get_route_graph`: `feature`, `package` and `pathPrefix` filters. Feature and package select a
+  route by the file declaring the screen it renders, not the file declaring the route — a central
+  route table would otherwise attribute an entire app to whichever slice holds the router. Ancestors
+  of a match are kept and counted separately, since a child inherits its shell's path and guards. On
+  a 219-route workspace, `feature=` renders 29 routes for 565 tokens against 3,346 for the graph.
+- `get_project_map`: a `depth` parameter, and a folder listing that goes as deep as each package
+  needs without being asked. A package holding most of its files under one folder is listed one level
+  deeper, up to four segments, stopping as soon as no folder dominates or the deeper grouping stops
+  splitting the package. A feature-first app previously rendered one `lib/features: 3783 file(s)` row
+  covering 83% of its code; it now names all 28 features and their sizes.
+
+### Changed
+
+- `get_project_map`: generated files are grouped into one row per package instead of listing a
+  codegen tree that mirrors the hand-written one (§7.4), a package holding no Dart files says so
+  rather than rendering an empty section, and the per-package listing is bounded in characters as
+  well as lines, matching the other tools' budgets.
+- The MCP handshake reports the version `package.json` publishes; a test asserts the two stay equal
+  (ISSUE-7).
 
 ## [0.2.0] - 2026-06-19
 
