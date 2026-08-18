@@ -85,6 +85,17 @@ All notable changes to this project are documented here. The format is based on
   splitting the package. A feature-first app previously rendered one `lib/features: 3783 file(s)` row
   covering 83% of its code; it now names all 28 features and their sizes.
 
+- An empty result now says which of three things it means (§7.2): the subject is not in the index, it
+  is there and genuinely unconnected, or it is there and part of the file it lives in could not be
+  parsed. The third previously read exactly like the second, which is the reading that costs trust —
+  an absence reported out of a file with syntax errors is not evidence of absence in the code, and
+  `find_state_wiring` and `get_widget_tree` now name the file and its error count.
+- `find_symbol`, `get_symbol`, `get_widget_tree` and `find_state_wiring` answer a name that matched
+  nothing with the closest names that exist (`Did you mean: CounterCubit?`). Matching is by character
+  bigram similarity, so a misspelling is answered as readily as a truncation — substring search finds
+  neither. Candidates come from the pool the query resolves against (widget classes for a widget
+  lookup, Bloc classes for a Bloc lookup), and `find_symbol` reports an excluding `kind=`/`package=`
+  filter instead, since suggestions would name symbols that filter excludes too.
 - Every tool response now closes with the index state it was served from —
   `index: 5054 files · 0 parse errors · updated just now` — so an empty answer can be told apart from
   an unindexed one. A whole-workspace re-scan in flight is stated, and so is a watcher that failed to

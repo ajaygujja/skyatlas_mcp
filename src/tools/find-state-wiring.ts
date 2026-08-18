@@ -17,6 +17,7 @@ import type { ProjectIndex } from '../index/project-index.js';
 import type { EdgeConfidence, EdgeKind } from '../model/flutter.js';
 import {
   computeWiring,
+  type CoverageGap,
   type Loc,
   type RepoDep,
   type ResolvedTarget,
@@ -152,8 +153,8 @@ function formatScreen(r: WiringResult, verbosity: Verbosity): string[] {
   if (!r.found) {
     return [
       `No screen/widget named '${r.query}' in the index. find_state_wiring resolves a ` +
-        `screen by class name. Try find_symbol to locate it, or get_project_map for the ` +
-        `detected stack${stackSuffix(r.stateLabels)}.`,
+        `screen by class name.${suggestionSuffix(r.suggestions)} Try find_symbol to locate it, or ` +
+        `get_project_map for the detected stack${stackSuffix(r.stateLabels)}.`,
     ];
   }
 
@@ -163,6 +164,7 @@ function formatScreen(r: WiringResult, verbosity: Verbosity): string[] {
     const name = route.name ? ` (${route.name})` : '';
     lines.push(`Reachable via route: ${route.label}${name} — ${loc(route.loc)}`);
   }
+  if (r.coverage) lines.push(coverageLine(r.coverage));
   lines.push('');
 
   if (r.targets.length === 0) {
@@ -233,13 +235,15 @@ function formatBloc(r: WiringResult, verbosity: Verbosity): string[] {
         `*Bloc/*Cubit base.`
       : `No Bloc/Cubit named '${r.query}' in the index.`;
     return [
-      `${note} Try find_symbol, or get_project_map for the detected stack${stackSuffix(r.stateLabels)}.`,
+      `${note}${suggestionSuffix(r.suggestions)} Try find_symbol, or get_project_map for the ` +
+        `detected stack${stackSuffix(r.stateLabels)}.`,
     ];
   }
 
   const lines = [
     `# State wiring: ${r.subject?.label ?? 'bloc'} '${r.query}'${declSuffix(r.subject?.decl)}`,
   ];
+  if (r.coverage) lines.push(coverageLine(r.coverage));
   lines.push('');
 
   if (r.sources.length === 0) {
@@ -309,13 +313,15 @@ function formatProvider(r: WiringResult, verbosity: Verbosity): string[] {
   if (!r.found) {
     return [
       `No provider named '${r.query}' in the index. find_state_wiring resolves a Riverpod ` +
-        `provider by name. Try find_symbol, or get_project_map for the detected stack${stackSuffix(r.stateLabels)}.`,
+        `provider by name.${suggestionSuffix(r.suggestions)} Try find_symbol, or get_project_map ` +
+        `for the detected stack${stackSuffix(r.stateLabels)}.`,
     ];
   }
 
   const lines = [
     `# State wiring: provider '${r.query}' (${r.subject?.label ?? 'provider'})${declSuffix(r.subject?.decl)}`,
   ];
+  if (r.coverage) lines.push(coverageLine(r.coverage));
   lines.push('');
 
   if (r.sources.length === 0) {
@@ -466,6 +472,27 @@ function suggestOtherFilter(stateLabels: string[]): string {
   if (hasRiverpod && !hasBloc) return 'Try find_state_wiring with provider=.';
   if (hasBloc && !hasRiverpod) return 'Try find_state_wiring with bloc=.';
   return 'Try find_state_wiring with bloc= or provider=.';
+}
+
+/**
+ * `Did you mean: A, B?` — the names of the right kind closest to a query that
+ * resolved to nothing, so a misremembered name costs one call rather than a
+ * search. Empty when the index holds nothing similar enough to name.
+ */
+function suggestionSuffix(suggestions: string[]): string {
+  return suggestions.length > 0 ? ` Did you mean: ${suggestions.join(', ')}?` : '';
+}
+
+/**
+ * States an extraction gap in the subject's file. An absence reported from a
+ * file the grammar could not fully parse is not evidence of absence in the code,
+ * and only this note distinguishes the two.
+ */
+function coverageLine(gap: CoverageGap): string {
+  return (
+    `Note: ${gap.file} has ${String(gap.parseErrors)} syntax error(s) the grammar could not parse — ` +
+    `extraction continued past them, so wiring declared inside those regions is not in the index.`
+  );
 }
 
 function stackSuffix(stateLabels: string[]): string {
