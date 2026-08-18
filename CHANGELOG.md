@@ -85,12 +85,20 @@ All notable changes to this project are documented here. The format is based on
   splitting the package. A feature-first app previously rendered one `lib/features: 3783 file(s)` row
   covering 83% of its code; it now names all 28 features and their sizes.
 
+- Every tool response now closes with the index state it was served from —
+  `index: 5054 files · 0 parse errors · updated just now` — so an empty answer can be told apart from
+  an unindexed one. A whole-workspace re-scan in flight is stated, and so is a watcher that failed to
+  start: a frozen index answers exactly like a live one, and nothing in the results reveals it.
+
 ### Changed
 
 - `get_project_map`: generated files are grouped into one row per package instead of listing a
   codegen tree that mirrors the hand-written one (§7.4), a package holding no Dart files says so
   rather than rendering an empty section, and the per-package listing is bounded in characters as
   well as lines, matching the other tools' budgets.
+- `get_project_map`: the `Index health: all files parsed clean` line is gone — the index state line
+  every response carries reports the parse-error count, and this tool now renders only what it alone
+  knows, the names of the files that failed.
 - The MCP handshake reports the version `package.json` publishes; a test asserts the two stay equal
   (ISSUE-7).
 

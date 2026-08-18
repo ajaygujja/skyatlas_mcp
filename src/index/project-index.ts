@@ -23,6 +23,20 @@ import type { PackageEntry } from './workspace.js';
 /** How `findByName` matches a query against symbol names. */
 export type MatchMode = 'exact' | 'prefix' | 'suffix' | 'substring' | 'regex';
 
+/**
+ * Whether filesystem changes are still reaching this index.
+ *
+ * `live` — a watcher is folding edits in, so the index tracks the working tree.
+ * `failed` — a watcher was started and could not be, so the index is frozen at
+ * its last build and every later edit is invisible to it.
+ * `off` — no watcher was ever attached (a one-shot build: benchmark, probe, test).
+ *
+ * The distinction is load-bearing for a caller: a frozen index answers exactly
+ * like a fresh one, so the state has to be stated rather than inferred from the
+ * results.
+ */
+export type WatchState = 'live' | 'failed' | 'off';
+
 export interface FileEntry {
   /** Workspace-relative path. */
   path: string;
@@ -79,6 +93,31 @@ export class ProjectIndex {
   readonly edges: Edge[] = [];
   packages: PackageEntry[] = [];
 
+  /**
+   * Whether edits still reach this index. Owned by whoever attaches the watcher
+   * (`src/server.ts`), since only that caller knows whether one was started and
+   * whether it survived.
+   */
+  watch: WatchState = 'off';
+
+  /**
+   * True while a whole-workspace re-scan is in flight. The re-scan builds a
+   * separate index and folds it in with `replaceWith` when it completes, so the
+   * contents stay whole and self-consistent throughout — what the flag reports
+   * is that they are a snapshot taken before the change that triggered the scan.
+   */
+  rescanning = false;
+
+  private mutatedAt = Date.now();
+
+  /**
+   * Epoch ms of the last file insertion, replacement or removal — when this
+   * index last took content in, not when the files themselves were written.
+   */
+  get updatedAt(): number {
+    return this.mutatedAt;
+  }
+
   /** Drop everything. Used before a full re-scan reloads the same instance. */
   clear(): void {
     this.files.clear();
@@ -111,6 +150,7 @@ export class ProjectIndex {
   /** Insert or replace a file's entry, keeping all lookup maps consistent. */
   setFile(entry: FileEntry): void {
     this.removeFile(entry.path);
+    this.mutatedAt = Date.now();
     this.files.set(entry.path, entry);
     for (const sym of walk(entry.symbols)) {
       this.symbolsById.set(sym.id, sym);
@@ -134,6 +174,7 @@ export class ProjectIndex {
   removeFile(path: string): void {
     const old = this.files.get(path);
     if (!old) return;
+    this.mutatedAt = Date.now();
     this.files.delete(path);
     for (const sym of walk(old.symbols)) {
       this.symbolsById.delete(sym.id);

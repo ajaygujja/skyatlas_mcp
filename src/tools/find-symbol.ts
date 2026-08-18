@@ -11,6 +11,7 @@ import {
   BARE_LINE_NOTE,
   errorResult,
   FileScope,
+  indexedResult,
   signatureText,
   textResult,
 } from './format.js';
@@ -112,7 +113,10 @@ export function registerFindSymbol(server: McpServer, getIndex: () => Promise<Pr
 
       if (countOnly) {
         const filterText = `${kind ? ` kind=${kind}` : ''}${pkg ? ` package=${pkg}` : ''}`;
-        return textResult(`${String(matches.length)} match(es) for '${query}'${filterText}.`);
+        return indexedResult(
+          `${String(matches.length)} match(es) for '${query}'${filterText}.`,
+          index,
+        );
       }
 
       if (matches.length === 0) {
@@ -124,8 +128,9 @@ export function registerFindSymbol(server: McpServer, getIndex: () => Promise<Pr
           unfiltered > 0
             ? ` ${String(unfiltered)} match(es) exist without the ${filters} filter — drop or change it.`
             : ' Try a shorter fragment, or get_project_map to see what exists.';
-        return textResult(
+        return indexedResult(
           `No symbols matching '${query}'${filters ? ` (${filters})` : ''}.${hint}`,
+          index,
         );
       }
 
@@ -133,8 +138,9 @@ export function registerFindSymbol(server: McpServer, getIndex: () => Promise<Pr
       const filterText = `${kind ? ` kind=${kind}` : ''}${pkg ? ` package=${pkg}` : ''}`;
       const start = offset ?? 0;
       if (start >= total) {
-        return textResult(
+        return indexedResult(
           `offset ${String(start)} is past the end — only ${String(total)} match(es) for '${query}'${filterText}. Use a smaller offset.`,
+          index,
         );
       }
 
@@ -155,7 +161,7 @@ export function registerFindSymbol(server: McpServer, getIndex: () => Promise<Pr
         `${BARE_LINE_NOTE} Signatures show the first ${String(MAX_PARAMS_PER_MATCH)} parameters — ` +
           'call get_symbol for a full declaration.',
       );
-      return textResult(lines.join('\n'));
+      return indexedResult(lines, index);
     },
   );
 }

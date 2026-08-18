@@ -14,7 +14,7 @@ import type { ProjectIndex } from '../index/project-index.js';
 import { CONTAINER_KINDS, resolveClass } from '../index/resolve.js';
 import type { WidgetInfo, WidgetNode } from '../model/flutter.js';
 import type { Symbol } from '../model/symbol.js';
-import { capChars, capLines, errorResult, textResult } from './format.js';
+import { capChars, capLines, errorResult, indexedResult } from './format.js';
 
 const MAX_LINES = 200;
 const DEFAULT_DEPTH = 8;
@@ -70,20 +70,24 @@ export function registerGetWidgetTree(
 
       const matches = resolveWidgets(index, widget);
       if (matches.length === 0) {
-        return textResult(noMatchMessage(index, widget));
+        return indexedResult(noMatchMessage(index, widget), index);
       }
       if (matches.length > 1) {
         const lines = matches.map((w) => `- ${w.name} (${w.flavor}) — ${w.file}:${String(w.line)}`);
-        return textResult(
-          `'${widget}' matches ${String(matches.length)} widget classes. Pick one by exact name:\n` +
-            lines.join('\n'),
+        return indexedResult(
+          [
+            `'${widget}' matches ${String(matches.length)} widget classes. Pick one by exact name:`,
+            ...lines,
+          ],
+          index,
         );
       }
 
       const info = matches[0];
       if (!info) return errorResult('Widget resolution failed.');
-      return textResult(
-        formatWidget(info, index, depth ?? DEFAULT_DEPTH, follow ?? false).join('\n'),
+      return indexedResult(
+        formatWidget(info, index, depth ?? DEFAULT_DEPTH, follow ?? false),
+        index,
       );
     },
   );

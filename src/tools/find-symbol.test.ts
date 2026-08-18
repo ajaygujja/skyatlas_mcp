@@ -153,6 +153,6 @@ describe('find_symbol (match modes)', () => {
 
   it('countOnly returns just the total', async () => {
     const text = await callFindSymbol({ query: 'Repository', kind: 'class', countOnly: true });
-    expect(text).toBe("4 match(es) for 'Repository' kind=class.");
+    expect(text.split('\n')[0]).toBe("4 match(es) for 'Repository' kind=class.");
   });
 });

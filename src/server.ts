@@ -61,8 +61,20 @@ async function main(): Promise<void> {
   // captured (not discarded) so shutdown can stop it: the watcher's open fs
   // handles keep the event loop alive, so without an explicit close the process
   // would never exit on its own.
+  // The watch state is recorded on the index because a frozen index answers
+  // exactly like a live one: every tool response states it (§7.3) so a caller
+  // can tell "not in the repo" from "not indexed since the watcher died".
   const watcherPromise = indexPromise
-    .then((index) => startWatcher(root, index))
+    .then(async (index) => {
+      try {
+        const handle = await startWatcher(root, index);
+        index.watch = 'live';
+        return handle;
+      } catch (err) {
+        index.watch = 'failed';
+        throw err;
+      }
+    })
     .catch((err: unknown) => {
       logger.error('watcher failed to start; index will not auto-refresh', {
         error: String(err),

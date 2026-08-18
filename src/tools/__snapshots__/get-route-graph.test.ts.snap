@@ -41,5 +41,6 @@ exports[`get_route_graph (formatted response) > renders the complete graph 1`] =
 - route_tables.dart:27 — routes mounted from \`...CyclicNavigation.routes()\` — no static table indexed
 - :37 — routes mounted from \`...MissingNavigation.routes()\` — no static table indexed
 
-Paths/screens are syntactic — screen names are constructors as written, not resolved. Const paths (e.g. \`RoutePaths.home\`) are resolved from indexed string consts where possible; an unresolved one is shown verbatim and labelled. A location written \`:120\` is a line in the last file named above it."
+Paths/screens are syntactic — screen names are constructors as written, not resolved. Const paths (e.g. \`RoutePaths.home\`) are resolved from indexed string consts where possible; an unresolved one is shown verbatim and labelled. A location written \`:120\` is a line in the last file named above it.
+index: 7 files · 0 parse errors · updated just now"
 `;

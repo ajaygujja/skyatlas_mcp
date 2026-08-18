@@ -12,8 +12,8 @@ import {
   capBody,
   errorResult,
   fileLine,
+  indexedResult,
   signatureText,
-  textResult,
   type BodyLimits,
 } from './format.js';
 
@@ -79,22 +79,25 @@ export function registerGetSymbol(server: McpServer, getIndex: () => Promise<Pro
             near.length > 0
               ? ` Close matches: ${near.map((s) => s.qualifiedName).join(', ')}. Try find_symbol.`
               : ' Try find_symbol with a fragment.';
-          return textResult(`No symbol named '${name}'.${hint}`);
+          return indexedResult(`No symbol named '${name}'.${hint}`, index);
         }
         if (exact.length > 1) {
           const lines = exact
             .slice(0, 10)
             .map((s) => `- ${s.kind} ${s.qualifiedName} — ${fileLine(s)} · id: ${s.id}`);
-          return textResult(
-            `'${name}' is ambiguous (${String(exact.length)} declarations). Call again with id:\n` +
-              lines.join('\n'),
+          return indexedResult(
+            [
+              `'${name}' is ambiguous (${String(exact.length)} declarations). Call again with id:`,
+              ...lines,
+            ],
+            index,
           );
         }
         sym = exact[0];
       }
       if (!sym) return errorResult('Symbol resolution failed.');
 
-      return textResult(formatSymbol(sym, index, includeChildren ?? true).join('\n'));
+      return indexedResult(formatSymbol(sym, index, includeChildren ?? true), index);
     },
   );
 }

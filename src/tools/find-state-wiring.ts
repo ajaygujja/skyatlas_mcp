@@ -31,7 +31,7 @@ import {
   capBody,
   errorResult,
   FileScope,
-  textResult,
+  indexedResult,
   VERBOSITY_DESCRIPTION,
   VERBOSITY_VALUES,
   type BodyLimits,
@@ -105,7 +105,7 @@ export function registerFindStateWiring(
       }
 
       const result = computeWiring(index, filter, depth);
-      return textResult(formatWiring(result, verbosity ?? 'normal').join('\n'));
+      return indexedResult(formatWiring(result, verbosity ?? 'normal'), index);
     },
   );
 }
