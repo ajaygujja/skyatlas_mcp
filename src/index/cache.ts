@@ -22,7 +22,10 @@ import { logger } from '../shared/logger.js';
 // v9: widget-extractor non-layout slot fix (ISSUE-1 Layer A) changes namedSlots
 //     content (listener/create/etc. no longer scanned) for already-cached files;
 //     shape is unchanged but stale entries would silently keep the old bug.
-const CACHE_VERSION = 9;
+// v10: FileEntry.references added (find_references) — a v9 entry carries no
+//      reference sites, so a name's reference count would be silently short by
+//      every file the cache still served.
+const CACHE_VERSION = 10;
 
 interface CacheFile {
   version: number;

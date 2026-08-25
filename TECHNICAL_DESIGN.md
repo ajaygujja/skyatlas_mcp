@@ -305,7 +305,7 @@ hash — warm start re-parses only changed files.
 
 ---
 
-## 6. MCP Tool Surface (v1 — exactly six tools)
+## 6. MCP Tool Surface
 
 Few tools, sharp tools. Every description must tell the LLM *when* to use it.
 All responses are compact markdown with `file:line` references, hard-capped in size
@@ -315,6 +315,7 @@ All responses are compact markdown with `file:line` references, hard-capped in s
 |---|---|---|
 | `get_project_map` | `{ package?: string, depth?: number }` | Repo overview: packages, feature folders (listed as deep as each package needs), counts by kind, detected stack (state mgmt, router, codegen) — the "read this first" tool |
 | `find_symbol` | `{ query: string, kind?: SymbolKind, package?: string }` | Matching symbols: qualified name, kind, signature line, file:line, annotations |
+| `find_references` | `{ name: string, kind?: ReferenceKind[], package?: string, feature?: string, includeGenerated?: boolean, verbosity?: string }` | Where a name is used: constructions, annotations, type positions, static accesses and calls, aggregated per file and kind. Name matches, never type-resolved; falls back to shape when a full listing would exceed the budget |
 | `get_symbol` | `{ id?: string, name?: string, includeChildren?: boolean }` | One symbol in depth: declaration header, type params, extends/implements, annotations, member list, edges in/out |
 | `get_route_graph` | `{ router?: string, package?: string, feature?: string, pathPrefix?: string, verbosity?: string }` | Route tree with computed full paths, screen widget per route, guards: `/home → HomeScreen (lib/...:12)` indented by nesting; scoped by where the screen is declared |
 | `get_widget_tree` | `{ widget: string, depth?: number }` | Static build() tree of a widget, builder callbacks marked, Bloc/Provider wiring noted inline |
@@ -324,8 +325,13 @@ All responses are compact markdown with `file:line` references, hard-capped in s
 1. Markdown, not JSON. Dense lines, no prose padding.
 2. Every fact carries `file:line` so the assistant can jump to source.
 3. Truncate with explicit notice: `… 47 more — narrow with kind= or package=`. Never truncate silently.
-4. Distinguish certainty: syntactic name-matches are labeled `(syntactic match)`.
-5. Empty results explain themselves: `No Bloc found wiring to 'SettingsScreen'. Detected state mgmt in this repo: Riverpod. Try find_state_wiring with provider=.`
+4. Distinguish certainty: syntactic name-matches are labeled `(syntactic match)`, or covered by a
+   response-level guarantee where every line carries the same one.
+5. State the index each response was read from: file count, parse errors, how recently it changed,
+   and whether a watcher still feeds it (`AI_EFFICIENCY_ROADMAP.md` §7.3).
+6. Empty results explain themselves, and say which kind of empty they are (§7.2): the subject is
+   unknown to the index (with the nearest names), it is known and unconnected, or it is known and
+   the file it lives in has syntax the grammar could not parse.
 
 ---
 

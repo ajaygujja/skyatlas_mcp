@@ -9,6 +9,7 @@ import { buildIndex } from '../index/indexer.js';
 import type { ProjectIndex } from '../index/project-index.js';
 import { resolveRoutes, type RouteView } from '../index/route-view.js';
 import { computeWiring } from '../index/wiring.js';
+import { findReferences } from '../index/references.js';
 import { createServer } from '../server.js';
 
 /**
@@ -204,6 +205,45 @@ describe('find_state_wiring response budget', () => {
 function flatten(views: RouteView[]): RouteView[] {
   return views.flatMap((view) => [view, ...flatten(view.children)]);
 }
+
+describe('find_references response budget', () => {
+  const client = new Client({ name: 'references-budget-test', version: '0.0.0' });
+  let root: string;
+
+  async function callRefs(args: Record<string, unknown>): Promise<string> {
+    const result = await client.callTool({ name: 'find_references', arguments: args });
+    return (result.content as { type: string; text: string }[])[0]?.text ?? '';
+  }
+
+  beforeAll(async () => {
+    root = await nestedFixtureRoot('skyatlas-refs-budget-', WIRING_FIXTURES, 'state');
+    await connect((await buildIndex(root)).index, client);
+  });
+
+  afterAll(async () => {
+    await client.close();
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it('stays inside the token budget at each verbosity', async () => {
+    expect(estTokens(await callRefs({ name: 'CounterCubit', verbosity: 'summary' }))).toBeLessThan(
+      SUMMARY_TOKEN_BUDGET,
+    );
+    expect(estTokens(await callRefs({ name: 'CounterCubit' }))).toBeLessThan(NORMAL_TOKEN_BUDGET);
+  });
+
+  it('reports every reference location, per-file grouping included', async () => {
+    const text = await callRefs({ name: 'CounterCubit' });
+    const reported = locationsIn(text);
+    const report = findReferences((await buildIndex(root)).index, 'CounterCubit');
+
+    const expected = report.files.flatMap((group) =>
+      group.sites.map((site) => `${group.file}:${String(site.line)}`),
+    );
+    expect(expected.length).toBeGreaterThan(3);
+    for (const location of expected) expect(reported).toContain(location);
+  });
+});
 
 describe('get_project_map response budget', () => {
   const client = new Client({ name: 'project-map-budget-test', version: '0.0.0' });

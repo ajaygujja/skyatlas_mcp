@@ -44,7 +44,7 @@
     "code-intelligence"
   ],
   "license": "MIT",
-  "packageManager": "pnpm@11.6.0",
+  "packageManager": "pnpm@11.22.0",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "chokidar": "^5.0.0",

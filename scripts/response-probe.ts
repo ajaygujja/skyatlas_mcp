@@ -76,7 +76,34 @@ export function probeCalls(index: ProjectIndex): ProbeCall[] {
   calls.push({ tool: 'get_route_graph', args: {} });
   const feature = busiestFeature(index);
   if (feature !== undefined) calls.push({ tool: 'get_route_graph', args: { feature } });
+
+  // The most-referenced name is the widest response the server can produce, and
+  // the scoped call beside it is what a caller reaches for once the first one
+  // tells them to narrow — the pair is what shows whether scoping is worth it.
+  const hottest = mostReferencedName(index);
+  if (hottest !== undefined) {
+    calls.push({ tool: 'find_references', args: { name: hottest } });
+    if (feature !== undefined) {
+      calls.push({ tool: 'find_references', args: { name: hottest, feature } });
+    }
+  }
   return calls;
+}
+
+/**
+ * The name with the most reference sites, ties broken by name so two runs over
+ * one repo probe the same call.
+ */
+function mostReferencedName(index: ProjectIndex): string | undefined {
+  const counts = new Map<string, number>();
+  for (const entry of index.files.values()) {
+    if (entry.generated) continue;
+    for (const [name, sites] of Object.entries(entry.references)) {
+      counts.set(name, (counts.get(name) ?? 0) + sites.length);
+    }
+  }
+  const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  return ranked[0]?.[0];
 }
 
 /**

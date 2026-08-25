@@ -22,6 +22,7 @@ import type { Symbol } from '../model/symbol.js';
 import { detectStack } from './stack-detect.js';
 import { CONTAINER_KINDS, resolveClass } from './resolve.js';
 import { resolveRoutes } from './route-view.js';
+import { nearestNames } from '../shared/nearest.js';
 
 /** Dependency hops followed from a bloc unless the caller asks for more. */
 const DEFAULT_DEPTH = 1;
@@ -108,6 +109,20 @@ export interface SubjectInfo {
   decl?: Loc;
 }
 
+/**
+ * Known extraction gap in a file the answer was read from.
+ *
+ * Syntax the grammar could not parse is skipped, and extraction continues past
+ * it (§9.4), so a wiring call site inside such a region is absent from the index
+ * without being absent from the code. Reporting the gap is what separates
+ * "nothing wires to this" from "the analysis could not see all of it" — the two
+ * absences a caller must not confuse.
+ */
+export interface CoverageGap {
+  file: string;
+  parseErrors: number;
+}
+
 export type WiringFilter =
   | { kind: 'screen'; name: string }
   | { kind: 'bloc'; name: string }
@@ -130,6 +145,13 @@ export interface WiringResult {
   routes: RouteRef[];
   /** Detected state-management labels, for honest-absence guidance (§6 rule 5). */
   stateLabels: string[];
+  /**
+   * Names of the requested kind closest to an unresolved query — empty when the
+   * subject resolved, or when nothing in the index is close enough to suggest.
+   */
+  suggestions: string[];
+  /** Set when the subject's own file holds syntax the grammar could not parse. */
+  coverage?: CoverageGap;
 }
 
 /** Resolve a wiring query against the index. Pure read over edges + symbols. */
@@ -149,16 +171,48 @@ export function computeWiring(
     repos: [] as RepoDep[],
     routes: [] as RouteRef[],
     stateLabels,
+    suggestions: [] as string[],
   };
 
-  switch (filter.kind) {
+  const result = ((): WiringResult => {
+    switch (filter.kind) {
+      case 'screen':
+        return wireScreen(index, filter.name, base, depth);
+      case 'bloc':
+        return wireBloc(index, filter.name, base, depth);
+      case 'provider':
+        return wireProvider(index, filter.name, base);
+    }
+  })();
+
+  if (!result.found)
+    result.suggestions = nearestNames(candidateNames(index, filter.kind), filter.name);
+  const gap = coverageGapOf(index, result.subject?.decl?.file);
+  if (gap) result.coverage = gap;
+  return result;
+}
+
+/**
+ * The names a query of this kind could have resolved to. A suggestion drawn from
+ * any wider pool would miss the same way the original query did, since each
+ * filter resolves against one kind of declaration.
+ */
+function candidateNames(index: ProjectIndex, kind: WiringFilter['kind']): Iterable<string> {
+  switch (kind) {
     case 'screen':
-      return wireScreen(index, filter.name, base, depth);
+      return [...index.widgets.values()].map((w) => w.name);
     case 'bloc':
-      return wireBloc(index, filter.name, base, depth);
+      return [...index.blocs.values()].map((b) => b.name);
     case 'provider':
-      return wireProvider(index, filter.name, base);
+      return index.providers.map((p) => p.name);
   }
+}
+
+/** The file's unparsable regions, when it has any — see `CoverageGap`. */
+function coverageGapOf(index: ProjectIndex, file: string | undefined): CoverageGap | undefined {
+  if (file === undefined) return undefined;
+  const errors = index.files.get(file)?.parseErrors.length ?? 0;
+  return errors > 0 ? { file, parseErrors: errors } : undefined;
 }
 
 type Base = Omit<WiringResult, 'found' | 'subject'>;

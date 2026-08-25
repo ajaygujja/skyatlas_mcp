@@ -37,7 +37,7 @@ or Provider wires to which screen, what a widget tree looks like.
 
 It does **not** run your app, change your code, or call the network. It only **reads**
 `.dart` files, builds an in-memory map (called the _index_), and keeps that map fresh as
-you edit. It exposes six question-answering **tools** over a protocol called **MCP**.
+you edit. It exposes seven question-answering **tools** over a protocol called **MCP**.
 
 Think of it as a librarian for your codebase: it has read every file and can instantly
 tell an AI assistant "the `SettingsScreen` route is defined at `lib/router.dart:42`"
@@ -479,7 +479,8 @@ If you are an AI assistant working in a repo that has this server registered:
   detected stack, and an **index-health line**. If that line reports files with syntax
   errors, treat structural answers about _those files_ as lower-confidence and verify with
   grep or the Dart server.
-- Use **`find_symbol` / `get_symbol`** to locate and inspect declarations; **`get_route_graph`**,
+- Use **`find_symbol` / `get_symbol`** to locate and inspect declarations, **`find_references`** to
+  see where a name is used before changing it; **`get_route_graph`**,
   **`get_widget_tree`**, **`find_state_wiring`** for Flutter-domain questions. Each returns
   compact, `file:line`-referenced markdown in **one call** — prefer them over multi-round
   grep-and-read.

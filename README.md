@@ -78,7 +78,7 @@ Add this to that repo's `.gitignore`:
 
 ---
 
-## The six tools
+## The tools
 
 Each answers a repo-structure question in compact, `file:line`-referenced markdown.
 
@@ -86,6 +86,7 @@ Each answers a repo-structure question in compact, `file:line`-referenced markdo
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
 | `get_project_map`   | Packages, folder layout, symbol counts, detected stack (state mgmt / router / codegen), index health. **The "read this first" tool.** | _"Give me a map of this Flutter project."_                           |
 | `find_symbol`       | Symbols matching a query — qualified name, kind, signature, `file:line`, annotations.                                                 | _"Find every class ending in Repository."_                           |
+| `find_references`   | Where a name is used — constructed, annotated, named in a type, statically accessed, called — aggregated per file.                    | _"Who uses FormRepository, and what breaks if I change it?"_         |
 | `get_symbol`        | One symbol in depth — declaration header, type params, extends/implements, members, edges in/out.                                     | _"Show me the UserBloc class in detail."_                            |
 | `get_route_graph`   | The route tree with computed full paths, the screen widget per route, and guards.                                                     | _"What's the route structure of this app?"_                          |
 | `get_widget_tree`   | The static `build()` tree of a widget, builder callbacks marked, Bloc/Provider wiring noted inline.                                   | _"What does SettingsScreen's widget tree look like?"_                |
@@ -103,8 +104,9 @@ The two are designed to be used **together**, not as alternatives:
 - **This server is the map** — whole-repo structure: where things are, how routes nest, which
   Bloc wires to which screen, what the widget tree looks like. Fast, syntactic, always-on.
 - **The official Dart MCP server is the microscope** — per-symbol semantic truth from the Dart
-  analyzer: resolved types, real find-references, error analysis and fixes, plus runtime
-  interaction with a _running_ app (hot reload, live widget tree).
+  analyzer: resolved types, type-resolved find-references (this server's are name matches),
+  error analysis and fixes, plus runtime interaction with a _running_ app (hot reload, live
+  widget tree).
 
 Typical loop: use `get_project_map` / `find_state_wiring` here to orient and locate, then hand
 the exact `file:line` to the Dart server (or your editor) for resolved semantics. Register both:

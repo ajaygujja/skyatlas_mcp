@@ -66,6 +66,25 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- **`find_references`** — a seventh tool, answering where a name is USED: constructed, annotated,
+  named in a type position, statically accessed, or called. This is the question that previously fell
+  back to grep, and the existing edge graph could not answer it — measured on a 5,054-file workspace
+  it holds 3,363 edges of two kinds (`readsBloc`, `createsBloc`), while five of the eight declared
+  `EdgeKind` members are emitted by nothing. A new pure extractor records every name a file uses
+  (281,476 sites on that workspace), stored per file and keyed by name so a lookup costs one map read
+  per file rather than a scan of them all.
+  Sites are name matches, never type-resolved: same-named declarations share their sites, a call is
+  matched by member name with its receiver kept verbatim and unresolved, and a name the workspace only
+  uses (an SDK type) is reported as external rather than as an empty result. Scope with `feature=`,
+  `package=`, `kind=` and `includeGenerated=`; anything excluded is counted in the response.
+  Size was designed in, not retrofitted: a shared constants class has 6,719 sites in 820 files, which
+  is ~41,900 tokens as a listing, so the response aggregates per file and kind and renders shape —
+  per-feature counts and the widest files, ~570 tokens — whenever a full listing would exceed the
+  budget, saying so and naming the filters that narrow it. `verbosity="full"` accepts the full cost.
+  A declared name with no sites is reported as possibly dead code, and an unknown name gets the
+  nearest names that exist.
+- `benchmark` probes `find_references` for the most-referenced name in the workspace, scoped and
+  unscoped, so the widest response the server can produce is recorded per run.
 - `find_state_wiring` and `get_route_graph`: a `verbosity` parameter. `summary` reports shape —
   counts, declaring files, top-level paths, per-target site and dependency counts — for a few hundred
   tokens; `normal` (the default) renders full detail within the character budget; `full` renders the
@@ -85,12 +104,36 @@ All notable changes to this project are documented here. The format is based on
   splitting the package. A feature-first app previously rendered one `lib/features: 3783 file(s)` row
   covering 83% of its code; it now names all 28 features and their sizes.
 
+- An empty result now says which of three things it means (§7.2): the subject is not in the index, it
+  is there and genuinely unconnected, or it is there and part of the file it lives in could not be
+  parsed. The third previously read exactly like the second, which is the reading that costs trust —
+  an absence reported out of a file with syntax errors is not evidence of absence in the code, and
+  `find_state_wiring` and `get_widget_tree` now name the file and its error count.
+- `find_symbol`, `get_symbol`, `get_widget_tree` and `find_state_wiring` answer a name that matched
+  nothing with the closest names that exist (`Did you mean: CounterCubit?`). Matching is by character
+  bigram similarity, so a misspelling is answered as readily as a truncation — substring search finds
+  neither. Candidates come from the pool the query resolves against (widget classes for a widget
+  lookup, Bloc classes for a Bloc lookup), and `find_symbol` reports an excluding `kind=`/`package=`
+  filter instead, since suggestions would name symbols that filter excludes too.
+- Every tool response now closes with the index state it was served from —
+  `index: 5054 files · 0 parse errors · updated just now` — so an empty answer can be told apart from
+  an unindexed one. A whole-workspace re-scan in flight is stated, and so is a watcher that failed to
+  start: a frozen index answers exactly like a live one, and nothing in the results reveals it.
+
 ### Changed
 
+- Disk cache bumped to v10: a v9 entry carries no reference sites, so `find_references` would have
+  under-reported by every file the cache still served — silently, and only for files nobody had
+  edited. Cold index time on the evaluation workspace goes 10.2 s → 13.4 s (budget 50.5 s for its
+  5,054 files) and the cache 52 MB → 81 MB; RSS measured 490 MB cold and 585 MB warm, within the
+  441–650 MB band that workspace already spanned on unchanged code.
 - `get_project_map`: generated files are grouped into one row per package instead of listing a
   codegen tree that mirrors the hand-written one (§7.4), a package holding no Dart files says so
   rather than rendering an empty section, and the per-package listing is bounded in characters as
   well as lines, matching the other tools' budgets.
+- `get_project_map`: the `Index health: all files parsed clean` line is gone — the index state line
+  every response carries reports the parse-error count, and this tool now renders only what it alone
+  knows, the names of the files that failed.
 - The MCP handshake reports the version `package.json` publishes; a test asserts the two stay equal
   (ISSUE-7).
 

@@ -162,6 +162,10 @@ export async function startWatcher(
     const summary: BatchSummary = { upserted: [], removed: [], fullRescan };
 
     if (fullRescan) {
+      // Flagged for the duration: the live index keeps serving its previous
+      // contents whole, and a caller reading a response mid-scan is told that
+      // what it holds predates the change that triggered the scan.
+      index.rescanning = true;
       try {
         const { index: fresh } = await buildIndex(root); // reuses the warm content-hash cache
         index.replaceWith(fresh);
@@ -171,6 +175,8 @@ export async function startWatcher(
       } catch (err) {
         // Leave the existing index intact; a later edit will retry.
         logger.warn('watcher full re-scan failed, index unchanged', { error: String(err) });
+      } finally {
+        index.rescanning = false;
       }
       // buildIndex already persisted the cache — no debounced save needed here.
       opts.onBatch?.(summary);

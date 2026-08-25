@@ -9,6 +9,7 @@ import { startWatcher } from './index/watcher.js';
 import type { ProjectIndex } from './index/project-index.js';
 import { registerGetProjectMap } from './tools/get-project-map.js';
 import { registerFindSymbol } from './tools/find-symbol.js';
+import { registerFindReferences } from './tools/find-references.js';
 import { registerGetSymbol } from './tools/get-symbol.js';
 import { registerGetWidgetTree } from './tools/get-widget-tree.js';
 import { registerGetRouteGraph } from './tools/get-route-graph.js';
@@ -28,6 +29,7 @@ export function createServer(getIndex: () => Promise<ProjectIndex>): McpServer {
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
   registerGetProjectMap(server, getIndex);
   registerFindSymbol(server, getIndex);
+  registerFindReferences(server, getIndex);
   registerGetSymbol(server, getIndex);
   registerGetWidgetTree(server, getIndex);
   registerGetRouteGraph(server, getIndex);
@@ -61,8 +63,20 @@ async function main(): Promise<void> {
   // captured (not discarded) so shutdown can stop it: the watcher's open fs
   // handles keep the event loop alive, so without an explicit close the process
   // would never exit on its own.
+  // The watch state is recorded on the index because a frozen index answers
+  // exactly like a live one: every tool response states it (§7.3) so a caller
+  // can tell "not in the repo" from "not indexed since the watcher died".
   const watcherPromise = indexPromise
-    .then((index) => startWatcher(root, index))
+    .then(async (index) => {
+      try {
+        const handle = await startWatcher(root, index);
+        index.watch = 'live';
+        return handle;
+      } catch (err) {
+        index.watch = 'failed';
+        throw err;
+      }
+    })
     .catch((err: unknown) => {
       logger.error('watcher failed to start; index will not auto-refresh', {
         error: String(err),

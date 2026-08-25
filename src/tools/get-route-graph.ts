@@ -28,7 +28,7 @@ import {
   capBody,
   errorResult,
   FileScope,
-  textResult,
+  indexedResult,
   VERBOSITY_DESCRIPTION,
   VERBOSITY_VALUES,
   type BodyLimits,
@@ -130,7 +130,7 @@ export function registerGetRouteGraph(
         ...(feature === undefined ? {} : { feature }),
         ...(pathPrefix === undefined ? {} : { pathPrefix }),
       };
-      return textResult(formatRouteGraph(index, router, scope, verbosity ?? 'normal').join('\n'));
+      return indexedResult(formatRouteGraph(index, router, scope, verbosity ?? 'normal'), index);
     },
   );
 }

@@ -14,9 +14,16 @@ import type { ProjectIndex } from '../index/project-index.js';
 import { CONTAINER_KINDS, resolveClass } from '../index/resolve.js';
 import type { WidgetInfo, WidgetNode } from '../model/flutter.js';
 import type { Symbol } from '../model/symbol.js';
-import { capChars, capLines, errorResult, textResult } from './format.js';
+import { nearestNames } from '../shared/nearest.js';
+import { capChars, capLines, errorResult, indexedResult } from './format.js';
 
 const MAX_LINES = 200;
+/**
+ * Nearest names quoted back when a lookup misses. Enough to cover a
+ * misremembered name; more reads as a listing the caller did not ask for.
+ */
+const MAX_SUGGESTIONS = 5;
+
 const DEFAULT_DEPTH = 8;
 
 /**
@@ -70,20 +77,24 @@ export function registerGetWidgetTree(
 
       const matches = resolveWidgets(index, widget);
       if (matches.length === 0) {
-        return textResult(noMatchMessage(index, widget));
+        return indexedResult(noMatchMessage(index, widget), index);
       }
       if (matches.length > 1) {
         const lines = matches.map((w) => `- ${w.name} (${w.flavor}) — ${w.file}:${String(w.line)}`);
-        return textResult(
-          `'${widget}' matches ${String(matches.length)} widget classes. Pick one by exact name:\n` +
-            lines.join('\n'),
+        return indexedResult(
+          [
+            `'${widget}' matches ${String(matches.length)} widget classes. Pick one by exact name:`,
+            ...lines,
+          ],
+          index,
         );
       }
 
       const info = matches[0];
       if (!info) return errorResult('Widget resolution failed.');
-      return textResult(
-        formatWidget(info, index, depth ?? DEFAULT_DEPTH, follow ?? false).join('\n'),
+      return indexedResult(
+        formatWidget(info, index, depth ?? DEFAULT_DEPTH, follow ?? false),
+        index,
       );
     },
   );
@@ -369,17 +380,41 @@ function noBuildTreeNote(info: WidgetInfo, index: ProjectIndex): string {
     }
     return `No build() here — ${info.name} is a StatefulWidget; its build tree lives in a separate State class (not found in the index).`;
   }
-  return `No build() tree extracted for ${info.name}. It may build via a helper method or have no build() in this class.`;
+  return (
+    `No build() tree extracted for ${info.name}. It may build via a helper method or have no ` +
+    `build() in this class.${parseGapSuffix(index, info.file)}`
+  );
 }
 
+/**
+ * States unparsable regions in the declaring file. A tree missing from a file the
+ * grammar could not fully parse is not evidence that the code has none, and this
+ * is the only signal that separates the two.
+ */
+function parseGapSuffix(index: ProjectIndex, file: string): string {
+  const errors = index.files.get(file)?.parseErrors.length ?? 0;
+  if (errors === 0) return '';
+  return (
+    ` ${file} also has ${String(errors)} syntax error(s) the grammar could not parse —` +
+    ' extraction continued past them, so part of this file is not in the index.'
+  );
+}
+
+/**
+ * A name that matched no widget class, with the closest ones that exist.
+ *
+ * Candidates come from the widget pool alone: a suggestion naming a class this
+ * tool cannot render would fail the same way the original query did. Names are
+ * matched by similarity rather than as substrings, so a misspelling is answered
+ * as readily as a truncation.
+ */
 function noMatchMessage(index: ProjectIndex, name: string): string {
-  const lower = name.toLowerCase();
-  const near = [...index.widgets.values()]
-    .filter((w) => w.name.toLowerCase().includes(lower))
-    .slice(0, 8)
-    .map((w) => `${w.name} (${w.flavor})`);
+  const flavors = new Map([...index.widgets.values()].map((w) => [w.name, w.flavor]));
+  const near = nearestNames(flavors.keys(), name, MAX_SUGGESTIONS).map(
+    (candidate) => `${candidate} (${String(flavors.get(candidate))})`,
+  );
   if (near.length > 0) {
-    return `No widget class named '${name}'. Similar: ${near.join(', ')}.`;
+    return `No widget class named '${name}'. Did you mean: ${near.join(', ')}?`;
   }
   return `No widget class named '${name}'. ${String(index.widgets.size)} widget(s) indexed — use find_symbol to search, or get_project_map to orient.`;
 }

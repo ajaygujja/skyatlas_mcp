@@ -7,15 +7,22 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { ProjectIndex } from '../index/project-index.js';
 import type { Symbol } from '../model/symbol.js';
+import { nearestNames } from '../shared/nearest.js';
 import {
   annotationsText,
   capBody,
   errorResult,
   fileLine,
+  indexedResult,
   signatureText,
-  textResult,
   type BodyLimits,
 } from './format.js';
+
+/**
+ * Nearest names quoted back when a lookup misses. Enough to cover a
+ * misremembered name; more reads as a listing the caller did not ask for.
+ */
+const MAX_SUGGESTIONS = 5;
 
 /**
  * Size limits for the member list. A member count alone does not bound the
@@ -74,27 +81,30 @@ export function registerGetSymbol(server: McpServer, getIndex: () => Promise<Pro
         const topLevel = exact.filter((s) => s.qualifiedName === name);
         if (topLevel.length > 0) exact = topLevel;
         if (exact.length === 0) {
-          const near = index.findByName(name).slice(0, 5);
+          const near = nearestNames(index.byName.keys(), name, MAX_SUGGESTIONS);
           const hint =
             near.length > 0
-              ? ` Close matches: ${near.map((s) => s.qualifiedName).join(', ')}. Try find_symbol.`
+              ? ` Did you mean: ${near.join(', ')}? Or try find_symbol with a fragment.`
               : ' Try find_symbol with a fragment.';
-          return textResult(`No symbol named '${name}'.${hint}`);
+          return indexedResult(`No symbol named '${name}'.${hint}`, index);
         }
         if (exact.length > 1) {
           const lines = exact
             .slice(0, 10)
             .map((s) => `- ${s.kind} ${s.qualifiedName} — ${fileLine(s)} · id: ${s.id}`);
-          return textResult(
-            `'${name}' is ambiguous (${String(exact.length)} declarations). Call again with id:\n` +
-              lines.join('\n'),
+          return indexedResult(
+            [
+              `'${name}' is ambiguous (${String(exact.length)} declarations). Call again with id:`,
+              ...lines,
+            ],
+            index,
           );
         }
         sym = exact[0];
       }
       if (!sym) return errorResult('Symbol resolution failed.');
 
-      return textResult(formatSymbol(sym, index, includeChildren ?? true).join('\n'));
+      return indexedResult(formatSymbol(sym, index, includeChildren ?? true), index);
     },
   );
 }

@@ -29,10 +29,11 @@ describe('skyatlas MCP server (stdio E2E)', () => {
     await rm(root, { recursive: true, force: true });
   });
 
-  it('lists all six v1 tools (ping retired)', async () => {
+  it('lists every registered tool', async () => {
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual([
+      'find_references',
       'find_state_wiring',
       'find_symbol',
       'get_project_map',
@@ -49,7 +50,9 @@ describe('skyatlas MCP server (stdio E2E)', () => {
     expect(text).toContain('Bloc [state]');
     expect(text).toContain('## mini_app');
     expect(text).toContain('## shared_ui');
-    expect(text).toContain('all files parsed clean');
+    // A clean parse is reported by the index state line every response carries;
+    // get_project_map names files only when some of them failed.
+    expect(text).toContain('0 parse errors');
   });
 
   it('find_symbol returns ranked matches with file:line', async () => {

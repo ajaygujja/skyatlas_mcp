@@ -3,6 +3,7 @@
  * (TECHNICAL_DESIGN.md §6): dense markdown lines, file:line on every fact,
  * explicit truncation, no prose padding.
  */
+import type { ProjectIndex } from '../index/project-index.js';
 import type { Param, Symbol, TypeRef } from '../model/symbol.js';
 
 export function typeRefText(ref: TypeRef): string {
@@ -226,11 +227,66 @@ export class FileScope {
   }
 }
 
+/** Ages below this read as current; above it the line states how old the index is. */
+const RECENT_UPDATE_MS = 60_000;
+
+/**
+ * The index state every answer is served from: how much was indexed, how much of
+ * it parsed cleanly, how recently it changed, and whether it still tracks the
+ * working tree.
+ *
+ * Without it a caller cannot tell an empty answer from an unindexed one, and the
+ * two lead to opposite next actions — refine the query, or wait and retry. The
+ * age is bucketed rather than exact because the decision it informs is coarse
+ * ("is this from before my edit?"), and because a per-second value would make
+ * every response text unreproducible.
+ *
+ * `now` is a parameter so the bucketing is testable without a clock.
+ */
+export function indexStatusLine(index: ProjectIndex, now: number = Date.now()): string {
+  const errors = index.parseErrorCount();
+  const parts = [
+    `${String(index.files.size)} files`,
+    `${String(errors)} parse error${errors === 1 ? '' : 's'}`,
+    `updated ${updateAge(now - index.updatedAt)}`,
+  ];
+  if (index.rescanning) parts.push('full re-scan in progress');
+  if (index.watch === 'failed') parts.push('file watch failed — edits since are not indexed');
+  return `index: ${parts.join(' · ')}`;
+}
+
+/** Coarse age of the last index update, largest whole unit that applies. */
+function updateAge(elapsedMs: number): string {
+  if (elapsedMs < RECENT_UPDATE_MS) return 'just now';
+  const minutes = Math.floor(elapsedMs / 60_000);
+  if (minutes < 60) return `${String(minutes)}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${String(hours)}h ago`;
+  return `${String(Math.floor(hours / 24))}d ago`;
+}
+
 /** Wraps tool handler output; catches handler errors per §9.4 (never throw raw). */
 export function textResult(text: string): {
   content: { type: 'text'; text: string }[];
 } {
   return { content: [{ type: 'text', text }] };
+}
+
+/**
+ * A tool response reporting on the index, closed by the state line the index was
+ * read at (§7.3 of AI_EFFICIENCY_ROADMAP.md).
+ *
+ * Every answer derived from the index goes out through here, including the ones
+ * that report absence — those are exactly the answers whose meaning depends on
+ * the index being complete. Argument-validation replies use `textResult`: they
+ * describe the call, not the repo, so index state says nothing about them.
+ */
+export function indexedResult(
+  body: string | string[],
+  index: ProjectIndex,
+): { content: { type: 'text'; text: string }[] } {
+  const text = Array.isArray(body) ? body.join('\n') : body;
+  return textResult(`${text}\n${indexStatusLine(index)}`);
 }
 
 export function errorResult(message: string): {

@@ -7,7 +7,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { ProjectIndex } from '../index/project-index.js';
 import { detectStack } from '../index/stack-detect.js';
 import type { Symbol, SymbolKind } from '../model/symbol.js';
-import { capBody, errorResult, textResult, type BodyLimits } from './format.js';
+import { capBody, errorResult, indexedResult, type BodyLimits } from './format.js';
 
 /**
  * Path segments a folder listing starts at. Two segments describe a small
@@ -29,6 +29,12 @@ const MAX_FOLDER_DEPTH = 4;
  * uninformative, and so triggers a deeper one.
  */
 const DOMINANT_FOLDER_SHARE = 0.4;
+
+/**
+ * Files named when reporting syntax errors. The count is the actionable fact;
+ * a handful of paths shows the pattern, and `doctor` reports the full list.
+ */
+const PARSE_ERROR_FILES_SHOWN = 5;
 
 /**
  * Size limits for one package's folder listing. Applied per package so a large
@@ -104,16 +110,18 @@ export function registerGetProjectMap(
           `(${String(generated)} generated), ${String(symbolCount)} symbols`,
       );
 
+      // The clean case is stated by the index state line every response carries;
+      // named files are the part only this tool reports, so only they render here.
       const errFiles = files.filter((f) => f.parseErrors.length > 0);
-      lines.push(
-        errFiles.length === 0
-          ? 'Index health: all files parsed clean'
-          : `Index health: ${String(errFiles.length)} file(s) with syntax errors — ` +
-              `extraction continued past them: ${errFiles
-                .slice(0, 5)
-                .map((f) => f.path)
-                .join(', ')}${errFiles.length > 5 ? ', …' : ''}`,
-      );
+      if (errFiles.length > 0) {
+        lines.push(
+          `Index health: ${String(errFiles.length)} file(s) with syntax errors — ` +
+            `extraction continued past them: ${errFiles
+              .slice(0, PARSE_ERROR_FILES_SHOWN)
+              .map((f) => f.path)
+              .join(', ')}${errFiles.length > PARSE_ERROR_FILES_SHOWN ? ', …' : ''}`,
+        );
+      }
 
       const stack = detectStack(index);
       lines.push(
@@ -139,7 +147,7 @@ export function registerGetProjectMap(
         lines.push(...layout.rows);
       }
 
-      return textResult(lines.join('\n'));
+      return indexedResult(lines, index);
     },
   );
 }
