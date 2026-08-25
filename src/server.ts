@@ -23,7 +23,7 @@ const SERVER_NAME = 'skyatlas';
  * `src/server.test.ts` asserts — a client that is told a version the published
  * package does not carry cannot reason about which fixes it is talking to.
  */
-const SERVER_VERSION = '0.2.0';
+const SERVER_VERSION = '0.3.0';
 
 export function createServer(getIndex: () => Promise<ProjectIndex>): McpServer {
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });

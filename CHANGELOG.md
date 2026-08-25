@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-25
+
 ### Fixed
 
 - `get_widget_tree`: constructor calls in non-layout slots (`listener:`, `create:`, `update:`,
