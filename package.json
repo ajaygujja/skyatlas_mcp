@@ -1,6 +1,6 @@
 {
   "name": "skyatlas-mcp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Flutter-aware whole-repo structural intelligence for AI assistants, over MCP",
   "type": "module",
   "author": "ajay gujja <ajaygujja5@gmail.com>",
